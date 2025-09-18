@@ -3,6 +3,8 @@ import { Button, Container, Typography, Box } from '@mui/material';
 import { Link } from 'react-router-dom';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Login from './Login';
+import HrDashboard from './HrDashboard';
+import CandidateDashboard from './CandidateDashboard';
 
 function App() {
   return (
@@ -26,18 +28,20 @@ function App() {
                 </Typography>
                 <Typography variant="body1" gutterBottom>
                   <strong>Features:</strong>
+                  <ul>
+                    <li>AI-driven resume parsing and ranking</li>
+                    <li>Chatbot for screening questions and resume tips</li>
+                    <li>HR and candidate dashboards</li>
+                    <li>Job postings and email notifications</li>
+                  </ul>
                 </Typography>
-                <ul style={{ textAlign: 'left', display: 'inline-block' }}>
-                  <li>AI-driven resume parsing and ranking</li>
-                  <li>Chatbot for screening questions and resume tips</li>
-                  <li>HR and candidate dashboards</li>
-                  <li>Job postings and email notifications</li>
-                </ul>
               </Box>
             </Container>
           }
         />
         <Route path="/login" element={<Login />} />
+        <Route path="/hr-dashboard" element={<HrDashboard />} />
+        <Route path="/candidate-dashboard" element={<CandidateDashboard />} />
       </Routes>
     </Router>
   );
