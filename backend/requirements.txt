@@ -1,4 +1,6 @@
-fastapi
+fastapi[all]
 uvicorn
 python-dotenv
 supabase
+python-jose[cryptography]
+python-multipart
