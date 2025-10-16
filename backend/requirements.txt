@@ -13,3 +13,5 @@ fairlearn
 torch 
 pydantic
 
+torch
+pydantic
