@@ -10,5 +10,8 @@ pytesseract
 opencv-python
 transformers
 fairlearn
+torch 
+pydantic
+
 torch
 pydantic
