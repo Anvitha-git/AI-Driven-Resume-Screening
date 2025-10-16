@@ -4,3 +4,11 @@ python-dotenv
 supabase
 python-jose[cryptography]
 python-multipart
+pdfplumber
+python-docx
+pytesseract
+opencv-python
+transformers
+fairlearn
+torch
+pydantic
