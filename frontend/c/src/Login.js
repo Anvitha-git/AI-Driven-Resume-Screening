@@ -1,71 +1,68 @@
+
 import React from 'react';
-import { Button, Container, TextField, Box, Typography, Divider } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import './LandingPage.css';
 
 function Login() {
   const navigate = useNavigate();
   const [email, setEmail] = React.useState('');
   const [password, setPassword] = React.useState('');
+  const [error, setError] = React.useState('');
 
   const handleLogin = async (e) => {
     e.preventDefault();
+    setError('');
     try {
       const response = await axios.post('http://localhost:8000/login', { email, password });
-      localStorage.setItem('token', response.data.access_token);
-      navigate('/candidate-dashboard', { state: { token: response.data.access_token } });
+  localStorage.setItem('token', response.data.access_token);
+  localStorage.setItem('access_token', response.data.access_token);
+  localStorage.setItem('refresh_token', response.data.refresh_token);
+  localStorage.setItem('user_id', response.data.user_id);
+  localStorage.setItem('role', response.data.role);
+  // Persist email for friendly display name in dashboards
+  localStorage.setItem('email', email);
+      // Redirect based on role
+      const role = response.data.role;
+      if (role === 'HR') {
+        navigate('/hr-dashboard', { state: { token: response.data.access_token }, replace: true });
+      } else {
+        navigate('/candidate-dashboard', { state: { token: response.data.access_token }, replace: true });
+      }
     } catch (error) {
-      alert('Login failed: ' + (error.response?.data?.detail || error.message));
-    }
-  };
-
-  const handleDemoLogin = async (role) => {
-    try {
-      const response = await axios.post(`http://localhost:8000/demo-login/${role}`);
-      localStorage.setItem('token', response.data.access_token);
-      navigate(role === 'demo_hr' ? '/hr-dashboard' : '/candidate-dashboard', { state: { token: response.data.access_token } });
-    } catch (error) {
-      alert('Demo login failed: ' + (error.response?.data?.detail || error.message));
+      setError(error.response?.data?.detail || error.message || 'Login failed.');
     }
   };
 
   return (
-    <Container maxWidth="sm">
-      <Box sx={{ mt: 4, textAlign: 'center' }}>
-        <Typography variant="h4" gutterBottom>
-          Login
-        </Typography>
-        <Box component="form" sx={{ display: 'flex', flexDirection: 'column', gap: 2 }} onSubmit={handleLogin}>
-          <TextField
-            label="Email"
-            variant="outlined"
-            fullWidth
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-          />
-          <TextField
-            label="Password"
-            type="password"
-            variant="outlined"
-            fullWidth
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
-          <Button variant="contained" color="primary" type="submit">
-            Sign In
-          </Button>
-        </Box>
-        <Divider sx={{ my: 2 }}>OR</Divider>
-        <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center' }}>
-          <Button variant="outlined" onClick={() => handleDemoLogin('demo_hr')}>
-            Login as Demo HR
-          </Button>
-          <Button variant="outlined" onClick={() => handleDemoLogin('demo_candidate')}>
-            Login as Demo Candidate
-          </Button>
-        </Box>
-      </Box>
-    </Container>
+    <div className="auth-container">
+      <div className="auth-title">Sign In</div>
+      <form className="auth-form" onSubmit={handleLogin} autoComplete="off">
+        <input
+          className="auth-field"
+          type="email"
+          placeholder="Email"
+          value={email}
+          onChange={e => setEmail(e.target.value)}
+          required
+        />
+        <input
+          className="auth-field"
+          type="password"
+          placeholder="Password"
+          value={password}
+          onChange={e => setPassword(e.target.value)}
+          required
+        />
+        <button className="auth-btn" type="submit">Sign In</button>
+      </form>
+      {error && <div className="auth-error">{error}</div>}
+      <div className="auth-divider" />
+      <div className="auth-alt-action">
+        Don&apos;t have an account?{' '}
+        <button className="auth-btn" style={{width: 'auto', padding: '0.4rem 1.2rem', fontSize: '1rem', marginTop: 0}} type="button" onClick={() => window.location.href = "/signup"}>Sign Up</button>
+      </div>
+    </div>
   );
 }
 

@@ -1,16 +1,76 @@
 version: "3.1"
+
 nlu:
 - intent: greet
   examples: |
+    - hey
     - hello
     - hi
-    - hey
-- intent: screening_question
+    - hello there
+    - good morning
+    - good evening
+    - hey there
+    - hi there
+
+- intent: goodbye
   examples: |
-    - what are my skills
-    - tell me about my resume
-    - ask me about my experience
-- intent: fallback
+    - bye
+    - goodbye
+    - see you later
+    - talk to you later
+    - catch you later
+    - bye bye
+    - see ya
+
+- intent: affirm
   examples: |
-    - I don't understand
-    - huh?
+    - yes
+    - yeah
+    - sure
+    - absolutely
+    - of course
+    - sounds good
+    - yes please
+    - yep
+    - ok
+    - okay
+
+- intent: deny
+  examples: |
+    - no
+    - nope
+    - not now
+    - maybe later
+    - no thanks
+    - not interested
+
+- intent: start_interview
+  examples: |
+    - start interview
+    - begin interview prep
+    - let's start
+    - ready for interview
+    - interview prep
+    - start prep
+
+- intent: out_of_scope
+  examples: |
+    - what's the weather
+    - tell me a joke
+    - who are you
+    - what can you do
+    - help me with something else
+    - I need help with coding
+
+- intent: provide_answer
+  examples: |
+    - I worked on [Python](skill) projects
+    - I have experience with [Django](skill)
+    - I led a team of 5 developers
+    - I reduced loading time by 40%
+    - I'm excited about this role because of growth opportunities
+    - I used [React](skill) to build the frontend
+    - My biggest achievement was launching the app
+    - I handled tight deadlines by prioritizing tasks
+    - I improved performance metrics significantly
+    - I collaborated with cross-functional teams

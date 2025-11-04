@@ -5,29 +5,59 @@ intents:
   - goodbye
   - affirm
   - deny
-  - mood_great
-  - mood_unhappy
-  - bot_challenge
+  - start_interview
+  - out_of_scope
+  - provide_answer
+
+entities:
+  - job_role
+  - skill
+
+slots:
+  jd_id:
+    type: text
+    mappings:
+      - type: from_text
+  user_id:
+    type: text
+    mappings:
+      - type: from_text
+  interview_questions:
+    type: list
+    mappings:
+      - type: custom
+  current_question_index:
+    type: any
+    mappings:
+      - type: custom
+  question_answers:
+    type: list
+    mappings:
+      - type: custom
 
 responses:
   utter_greet:
-    - text: "Hi! I'm here to help with your job application."
-
-  utter_cheer_up:
-  - text: "Here is something to cheer you up:"
-    image: "https://i.imgur.com/nGF1K8f.jpg"
-
-  utter_did_that_help:
-  - text: "Did that help you?"
-
-  utter_happy:
-  - text: "Great, carry on!"
+    - text: "Hi! Your resume is in. Want a 2-min interview prep? (Yes/No)"
 
   utter_goodbye:
-  - text: "Bye"
+    - text: "Goodbye! Best of luck with your application!"
 
-  utter_iamabot:
-  - text: "I am a bot, powered by Rasa."
+  utter_ask_ready:
+    - text: "Awesome! I'll ask 3–5 short questions. Ready?"
+
+  utter_invalid_answer:
+    - text: "Let's keep it short — 1–2 sentences max!"
+
+  utter_done:
+    - text: "You're ready! Good luck — you've got this!"
+
+  utter_out_of_scope:
+    - text: "I'm here to help with interview prep. Type 'yes' to get started!"
+
+actions:
+  - action_start_interview_prep
+  - action_ask_next_question
+  - action_validate_answer
 
 session_config:
   session_expiration_time: 60
