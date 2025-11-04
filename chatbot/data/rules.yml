@@ -1,14 +1,13 @@
 version: "3.1"
 rules:
-- rule: Say hello
+- rule: Say goodbye anytime
   steps:
-  - intent: greet
-  - action: utter_greet
-- rule: Handle screening questions
+  - intent: goodbye
+  - action: utter_goodbye
+
+- rule: Ask next question after validation
+  condition:
+  - slot_was_set:
+    - current_question_index
   steps:
-  - intent: screening_question
-  - action: utter_screening
-- rule: Fallback
-  steps:
-  - intent: fallback
-  - action: utter_fallback
+  - action: action_ask_next_question

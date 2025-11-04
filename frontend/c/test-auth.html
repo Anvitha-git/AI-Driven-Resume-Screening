@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Auth Test</title>
+</head>
+<body>
+    <h1>Authentication Test</h1>
+    <div>
+        <h2>1. Login First</h2>
+        <input type="email" id="email" placeholder="Email" value="candidate@test.com"><br>
+        <input type="password" id="password" placeholder="Password" value="password123"><br>
+        <button onclick="login()">Login</button>
+        <div id="loginResult"></div>
+    </div>
+    
+    <hr>
+    
+    <div>
+        <h2>2. Check LocalStorage</h2>
+        <button onclick="checkStorage()">Check Token</button>
+        <div id="storageResult"></div>
+    </div>
+    
+    <hr>
+    
+    <div>
+        <h2>3. Test Upload Endpoint</h2>
+        <input type="file" id="fileInput"><br>
+        <input type="text" id="jdId" placeholder="Job ID" value="1"><br>
+        <button onclick="testUpload()">Test Upload</button>
+        <div id="uploadResult"></div>
+    </div>
+
+    <script>
+        async function login() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            
+            try {
+                const response = await fetch('http://localhost:8000/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ email, password })
+                });
+                
+                const data = await response.json();
+                console.log('Login response:', data);
+                
+                if (data.access_token) {
+                    localStorage.setItem('token', data.access_token);
+                    localStorage.setItem('user_id', data.user_id);
+                    document.getElementById('loginResult').innerHTML = 
+                        `<p style="color:green">✓ Login successful!<br>Token: ${data.access_token.substring(0, 50)}...<br>User ID: ${data.user_id}</p>`;
+                } else {
+                    document.getElementById('loginResult').innerHTML = 
+                        `<p style="color:red">✗ Login failed: ${JSON.stringify(data)}</p>`;
+                }
+            } catch (error) {
+                console.error('Login error:', error);
+                document.getElementById('loginResult').innerHTML = 
+                    `<p style="color:red">✗ Error: ${error.message}</p>`;
+            }
+        }
+        
+        function checkStorage() {
+            const token = localStorage.getItem('token');
+            const userId = localStorage.getItem('user_id');
+            
+            console.log('Token:', token);
+            console.log('User ID:', userId);
+            
+            const result = `
+                <p><strong>Token:</strong> ${token ? token.substring(0, 50) + '...' : 'NOT FOUND'}</p>
+                <p><strong>Token Length:</strong> ${token ? token.length : 0}</p>
+                <p><strong>User ID:</strong> ${userId || 'NOT FOUND'}</p>
+            `;
+            
+            document.getElementById('storageResult').innerHTML = result;
+        }
+        
+        async function testUpload() {
+            const token = localStorage.getItem('token');
+            const file = document.getElementById('fileInput').files[0];
+            const jdId = document.getElementById('jdId').value;
+            
+            if (!token) {
+                document.getElementById('uploadResult').innerHTML = 
+                    '<p style="color:red">✗ No token found. Please login first.</p>';
+                return;
+            }
+            
+            if (!file) {
+                document.getElementById('uploadResult').innerHTML = 
+                    '<p style="color:red">✗ Please select a file.</p>';
+                return;
+            }
+            
+            const formData = new FormData();
+            formData.append('file', file);
+            
+            console.log('=== UPLOAD TEST ===');
+            console.log('URL:', `http://localhost:8000/upload-resume/${jdId}`);
+            console.log('Token:', token.substring(0, 50) + '...');
+            console.log('Token length:', token.length);
+            console.log('File:', file.name, file.type);
+            console.log('Authorization header:', `Bearer ${token.substring(0, 30)}...`);
+            
+            try {
+                const response = await fetch(`http://localhost:8000/upload-resume/${jdId}`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: formData
+                });
+                
+                console.log('Response status:', response.status);
+                console.log('Response headers:', [...response.headers.entries()]);
+                
+                const data = await response.json();
+                console.log('Response data:', data);
+                
+                if (response.ok) {
+                    document.getElementById('uploadResult').innerHTML = 
+                        `<p style="color:green">✓ Upload successful!<br>${JSON.stringify(data, null, 2)}</p>`;
+                } else {
+                    document.getElementById('uploadResult').innerHTML = 
+                        `<p style="color:red">✗ Upload failed (${response.status}):<br>${JSON.stringify(data, null, 2)}</p>`;
+                }
+            } catch (error) {
+                console.error('Upload error:', error);
+                document.getElementById('uploadResult').innerHTML = 
+                    `<p style="color:red">✗ Error: ${error.message}</p>`;
+            }
+        }
+    </script>
+</body>
+</html>

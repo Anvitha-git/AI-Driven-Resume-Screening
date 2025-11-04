@@ -1,47 +1,72 @@
+
+
 import React from 'react';
-import { Button, Container, Typography, Box } from '@mui/material';
-import { Link } from 'react-router-dom';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Login from './Login';
 import HrDashboard from './HrDashboard';
 import CandidateDashboard from './CandidateDashboard';
+import SignUp from './SignUp';
+import LandingPage from './LandingPage';
+
+function RequireAuth({ children, role }) {
+  const token = localStorage.getItem('access_token') || localStorage.getItem('token');
+  if (!token) {
+    return <Navigate to="/login" replace />;
+  }
+  return children;
+}
+
+function PreventAuth({ children, allowIfLoggedIn = false }) {
+  const token = localStorage.getItem('access_token') || localStorage.getItem('token');
+  const role = localStorage.getItem('role');
+  
+  // If allowIfLoggedIn is true, render children even if logged in
+  if (allowIfLoggedIn) {
+    return children;
+  }
+  
+  // Otherwise, redirect logged-in users to their dashboard
+  if (token) {
+    if (role === 'HR') {
+      return <Navigate to="/hr-dashboard" replace />;
+    } else {
+      return <Navigate to="/candidate-dashboard" replace />;
+    }
+  }
+  return children;
+}
+
+
 
 function App() {
   return (
     <Router>
       <Routes>
-        <Route
-          path="/"
-          element={
-            <Container maxWidth="md">
-              <Box sx={{ textAlign: 'right', mt: 2 }}>
-                <Button variant="contained" color="primary" component={Link} to="/login">
-                  Login/Sign Up
-                </Button>
-              </Box>
-              <Box sx={{ textAlign: 'center', mt: 4 }}>
-                <Typography variant="h3" gutterBottom>
-                  AI-Driven Resume Screening System
-                </Typography>
-                <Typography variant="h6" gutterBottom>
-                  A web-based application to streamline hiring with AI-powered resume screening and chatbot integration.
-                </Typography>
-                <Typography variant="body1" gutterBottom>
-                  <strong>Features:</strong>
-                  <ul>
-                    <li>AI-driven resume parsing and ranking</li>
-                    <li>Chatbot for screening questions and resume tips</li>
-                    <li>HR and candidate dashboards</li>
-                    <li>Job postings and email notifications</li>
-                  </ul>
-                </Typography>
-              </Box>
-            </Container>
-          }
-        />
-        <Route path="/login" element={<Login />} />
-        <Route path="/hr-dashboard" element={<HrDashboard />} />
-        <Route path="/candidate-dashboard" element={<CandidateDashboard />} />
+        <Route path="/" element={
+          <PreventAuth allowIfLoggedIn={true}>
+            <LandingPage />
+          </PreventAuth>
+        } />
+        <Route path="/login" element={
+          <PreventAuth>
+            <Login />
+          </PreventAuth>
+        } />
+        <Route path="/signup" element={
+          <PreventAuth>
+            <SignUp />
+          </PreventAuth>
+        } />
+        <Route path="/hr-dashboard" element={
+          <RequireAuth>
+            <HrDashboard />
+          </RequireAuth>
+        } />
+        <Route path="/candidate-dashboard" element={
+          <RequireAuth>
+            <CandidateDashboard />
+          </RequireAuth>
+        } />
       </Routes>
     </Router>
   );

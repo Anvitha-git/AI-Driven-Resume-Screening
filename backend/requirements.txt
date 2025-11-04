@@ -8,10 +8,10 @@ pdfplumber
 python-docx
 pytesseract
 opencv-python
+# Pin numpy to <2 due to TensorFlow/compiled extensions incompatibilities
+numpy<2
+# Prefer PyTorch-only transformers to avoid TF import
 transformers
 fairlearn
-torch 
-pydantic
-
 torch
 pydantic
