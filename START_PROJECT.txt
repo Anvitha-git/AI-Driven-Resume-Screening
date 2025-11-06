@@ -22,7 +22,7 @@ cd chatbot
 rasa run --enable-api --cors "*" --port 5005
 
 === URLS ===
-Backend API: http://localhost:8000
+Backend API: http://localhost:80009
 Frontend: http://localhost:3000
 Rasa Actions: http://localhost:5055
 Rasa Server: http://localhost:5005
