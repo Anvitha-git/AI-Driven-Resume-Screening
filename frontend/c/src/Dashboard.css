@@ -1609,9 +1609,81 @@
 
 @media (max-width: 768px) {
   .dashboard-header {
-    flex-direction: column;
-    gap: 1rem;
-    padding: 1rem;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 1rem;
+    gap: 0.75rem;
+  }
+
+  .dashboard-header-left {
+    flex-direction: row;
+    align-items: center;
+    gap: 0.75rem;
+    width: auto;
+    flex: 1;
+  }
+
+  .dashboard-hamburger {
+    width: 38px;
+    height: 38px;
+    order: -1; /* Move hamburger to the left */
+    flex-shrink: 0;
+  }
+
+  .hamburger-line {
+    width: 18px;
+  }
+
+  .dashboard-title {
+    font-size: 1.125rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .dashboard-welcome {
+    display: none; /* Hide welcome text on mobile */
+  }
+
+  .dashboard-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    width: auto;
+    flex-shrink: 0;
+  }
+
+  .dashboard-profile-icon,
+  .dashboard-bell-icon {
+    width: 36px;
+    height: 36px;
+    font-size: 1.25rem;
+  }
+
+  .dashboard-logout-btn {
+    padding: 0.5rem 1rem;
+    font-size: 0.875rem;
+  }
+
+  /* Notification and Profile dropdowns responsive */
+  .dashboard-notifications-dropdown {
+    right: 0;
+    left: auto;
+    min-width: calc(100vw - 2rem);
+    max-width: 360px;
+  }
+
+  .dashboard-profile-dropdown {
+    right: 0;
+    left: auto;
+    min-width: 200px;
+  }
+
+  .dashboard-bell-badge {
+    font-size: 0.65rem;
+    padding: 1px 5px;
+    min-width: 16px;
   }
 
   .dashboard-container {
@@ -1637,6 +1709,199 @@
   .dashboard-table th,
   .dashboard-table td {
     padding: 0.75rem 0.5rem;
+  }
+
+  /* My Applications table responsive */
+  .apps-table-wrapper {
+    overflow-x: auto;
+  }
+
+  .apps-table th,
+  .apps-table td {
+    padding: 0.75rem 0.5rem;
+    font-size: 0.85rem;
+  }
+
+  /* Candidates Interface responsive */
+  .candidates-title {
+    font-size: 1.5rem;
+  }
+
+  .candidates-filter-tabs {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .filter-tab {
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .candidate-card {
+    flex-direction: column;
+    gap: 1rem;
+    padding: 1rem;
+  }
+
+  .candidate-actions {
+    width: 100%;
+    flex-direction: column;
+  }
+
+  .view-profile-btn,
+  .candidate-decision-select {
+    width: 100%;
+  }
+
+  /* Profile page responsive */
+  .profile-header {
+    flex-direction: column;
+    gap: 1rem;
+    padding: 1.5rem;
+  }
+
+  .profile-name {
+    font-size: 1.5rem;
+  }
+
+  .profile-stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  /* Resources grid responsive */
+  .resources-grid {
+    grid-template-columns: 1fr;
+  }
+
+  /* Help cards responsive */
+  .help-cards-grid {
+    grid-template-columns: 1fr;
+  }
+
+  /* Dashboard form responsive */
+  .dashboard-form {
+    padding: 0;
+  }
+
+  .dashboard-file-input-container {
+    gap: 0.5rem;
+  }
+
+  /* Modal responsive */
+  .modal-content {
+    width: 95%;
+    max-width: none;
+  }
+
+  .modal-footer {
+    flex-direction: column;
+  }
+
+  .modal-btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  /* Contact info responsive */
+  .landing-contact-info {
+    grid-template-columns: 1fr;
+  }
+
+  /* Drawer responsive */
+  .dashboard-side-drawer {
+    width: 85vw;
+  }
+}
+
+@media (max-width: 480px) {
+  .dashboard-header {
+    padding: 0.625rem 0.75rem;
+  }
+
+  .dashboard-hamburger {
+    width: 36px;
+    height: 36px;
+  }
+
+  .hamburger-line {
+    width: 16px;
+    height: 2px;
+  }
+
+  .dashboard-title {
+    font-size: 1rem;
+  }
+
+  .dashboard-header-actions {
+    gap: 0.5rem;
+  }
+
+  .dashboard-profile-icon,
+  .dashboard-bell-icon {
+    width: 32px;
+    height: 32px;
+    font-size: 1.125rem;
+  }
+
+  .dashboard-logout-btn {
+    padding: 0.4rem 0.75rem;
+    font-size: 0.8125rem;
+  }
+
+  /* Notification and Profile dropdowns on small mobile */
+  .dashboard-notifications-dropdown {
+    min-width: calc(100vw - 1.5rem);
+    max-width: none;
+  }
+
+  .dashboard-notifications-list {
+    max-height: 300px;
+  }
+
+  .dashboard-bell-badge {
+    font-size: 0.6rem;
+    padding: 1px 4px;
+    min-width: 14px;
+  }
+
+  .dashboard-card {
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .dashboard-card-title {
+    font-size: 1.25rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .dashboard-btn-primary,
+  .dashboard-btn-secondary {
+    padding: 0.75rem 1.5rem;
+    font-size: 0.9rem;
+  }
+
+  .candidates-search-input {
+    font-size: 0.9rem;
+  }
+
+  .candidate-name {
+    font-size: 1rem;
+  }
+
+  .candidate-scores {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.25rem;
+  }
+
+  .profile-stat-value {
+    font-size: 2rem;
+  }
+
+  .resource-card,
+  .help-card {
+    padding: 1.5rem;
   }
 }
 

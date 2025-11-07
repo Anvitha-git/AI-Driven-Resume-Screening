@@ -371,34 +371,9 @@
     flex-direction: column;
   }
 
+  /* Hide illustration panel on mobile - only show on PC/laptop */
   .auth-illustration-panel {
-    min-height: 250px;
-    padding: 2rem;
-  }
-
-  .geometric-characters {
-    max-width: 250px;
-    height: 250px;
-  }
-
-  .character-purple {
-    width: 100px;
-    height: 140px;
-  }
-
-  .character-black {
-    width: 90px;
-    height: 120px;
-  }
-
-  .character-orange {
-    width: 130px;
-    height: 65px;
-  }
-
-  .character-yellow {
-    width: 60px;
-    height: 100px;
+    display: none;
   }
 
   .auth-form-panel {
@@ -412,11 +387,21 @@
     padding: 1rem;
   }
 
+  .modern-auth-container {
+    border-radius: 12px;
+  }
+
   .auth-heading {
     font-size: 1.5rem;
   }
 
-  .auth-illustration-panel {
-    min-height: 200px;
+  .auth-form-panel {
+    padding: 1.5rem 1.25rem;
+  }
+
+  .modern-auth-btn,
+  .google-btn {
+    padding: 0.75rem;
+    font-size: 0.9rem;
   }
 }

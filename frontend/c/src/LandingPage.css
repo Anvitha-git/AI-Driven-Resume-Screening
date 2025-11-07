@@ -449,6 +449,11 @@
     display: none;
   }
 
+  .landing-nav-right {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
   .landing-hero {
     padding: 3rem 1.5rem;
   }
@@ -461,9 +466,16 @@
     font-size: 1rem;
   }
 
+  .landing-hero-btn {
+    width: 100%;
+    max-width: 300px;
+  }
+
   .landing-features-section,
   .landing-how-section,
-  .landing-cta-section {
+  .landing-cta-section,
+  .landing-about-section,
+  .landing-contact-section {
     padding: 3rem 1.5rem;
   }
 
@@ -471,8 +483,17 @@
     font-size: 1.75rem;
   }
 
+  .landing-section-subtitle {
+    font-size: 1rem;
+  }
+
   .landing-features-grid {
     grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+
+  .landing-feature-card {
+    padding: 1.5rem;
   }
 
   .landing-step {
@@ -480,8 +501,31 @@
     gap: 1rem;
   }
 
+  .landing-step-number {
+    width: 42px;
+    height: 42px;
+    font-size: 1.125rem;
+  }
+
+  .landing-step-title {
+    font-size: 1.25rem;
+  }
+
   .landing-cta-title {
     font-size: 1.75rem;
+  }
+
+  .landing-cta-subtitle {
+    font-size: 1rem;
+  }
+
+  .landing-cta-btn {
+    width: 100%;
+    max-width: 300px;
+  }
+
+  .landing-contact-info {
+    grid-template-columns: 1fr;
   }
 
   .landing-footer-content {
@@ -493,6 +537,65 @@
   .landing-footer-links {
     flex-direction: column;
     gap: 0.75rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .landing-nav-btn {
+    padding: 0.4rem 1rem;
+    font-size: 0.875rem;
+  }
+
+  .landing-hero {
+    padding: 2.5rem 1rem;
+  }
+
+  .landing-hero-title {
+    font-size: 1.75rem;
+  }
+
+  .landing-hero-subtitle {
+    font-size: 0.9375rem;
+  }
+
+  .landing-hero-btn {
+    padding: 0.75rem 1.5rem;
+    font-size: 1rem;
+  }
+
+  .landing-features-section,
+  .landing-how-section,
+  .landing-cta-section {
+    padding: 2.5rem 1rem;
+  }
+
+  .landing-section-title {
+    font-size: 1.5rem;
+  }
+
+  .landing-feature-card {
+    padding: 1.25rem;
+  }
+
+  .landing-feature-icon {
+    width: 48px;
+    height: 48px;
+  }
+
+  .landing-feature-title {
+    font-size: 1.125rem;
+  }
+
+  .landing-step-title {
+    font-size: 1.125rem;
+  }
+
+  .landing-cta-title {
+    font-size: 1.5rem;
+  }
+
+  .landing-contact-item {
+    padding: 1.25rem;
   }
 }
 
