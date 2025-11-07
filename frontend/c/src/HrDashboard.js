@@ -1417,7 +1417,7 @@ function HrDashboard() {
             <h3 className="help-section-title">Quick Help</h3>
             <div className="help-cards-grid">
               <div className="help-card">
-                <div className="help-card-icon">📝</div>
+                <div className="help-card-icon">✏️</div>
                 <h4 className="help-card-title">Posting Jobs</h4>
                 <p className="help-card-description">Learn how to create effective job postings</p>
               </div>
@@ -1432,7 +1432,7 @@ function HrDashboard() {
                 <p className="help-card-description">Review, select, or reject applicants</p>
               </div>
               <div className="help-card">
-                <div className="help-card-icon">📊</div>
+                <div className="help-card-icon">�</div>
                 <h4 className="help-card-title">Analytics</h4>
                 <p className="help-card-description">Track hiring metrics and performance</p>
               </div>
