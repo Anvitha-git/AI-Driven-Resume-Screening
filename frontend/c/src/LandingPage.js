@@ -241,7 +241,7 @@ const LandingPage = () => {
               </svg>
               <div>
                 <h4>Email</h4>
-                <p>support@resumescreening.com</p>
+                <p>airesumescreening@gmail.com</p>
               </div>
             </div>
             <div className="landing-contact-item">

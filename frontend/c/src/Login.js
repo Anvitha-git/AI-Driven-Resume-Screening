@@ -21,8 +21,11 @@ function Login() {
       localStorage.setItem('refresh_token', response.data.refresh_token);
       localStorage.setItem('user_id', response.data.user_id);
       localStorage.setItem('role', response.data.role);
-      // Persist email for friendly display name in dashboards
       localStorage.setItem('email', email);
+      // Store name from response (if available)
+      if (response.data.name) {
+        localStorage.setItem('name', response.data.name);
+      }
       // Redirect based on role
       const role = response.data.role;
       if (role === 'HR') {

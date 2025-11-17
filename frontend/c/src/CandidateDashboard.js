@@ -17,6 +17,9 @@ function CandidateDashboard() {
   const [bugDescription, setBugDescription] = useState('');
   
   // Settings state
+  const [showEditNameModal, setShowEditNameModal] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [nameError, setNameError] = useState('');
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [passwordData, setPasswordData] = useState({ current: '', new: '', confirm: '' });
   
@@ -110,6 +113,13 @@ function CandidateDashboard() {
     if (!userId || !token) {
       navigate('/login');
       return;
+    }
+
+    // Ensure chat_user_id matches user_id
+    const chatUserId = localStorage.getItem('chat_user_id');
+    if (!chatUserId || chatUserId !== userId) {
+      console.log('Fixing chat_user_id in localStorage:', userId);
+      localStorage.setItem('chat_user_id', userId);
     }
 
     // Fetch jobs
@@ -256,7 +266,39 @@ const hasOpenApplication = () => {
     localStorage.removeItem('user_id');
     localStorage.removeItem('role');
     localStorage.removeItem('email');
+    localStorage.removeItem('name');
     navigate('/', { replace: true });
+  };
+
+  // Name editing handlers
+  const handleEditName = () => {
+    const currentName = localStorage.getItem('name') || '';
+    setNewName(currentName);
+    setNameError('');
+    setShowEditNameModal(true);
+  };
+
+  const handleNameSubmit = async () => {
+    if (!newName.trim()) {
+      setNameError('Name cannot be empty');
+      return;
+    }
+    
+    try {
+      const token = getAccessToken();
+      await axios.put('http://localhost:8000/update-name', 
+        { name: newName.trim() },
+        { headers: { Authorization: `Bearer ${token}` }}
+      );
+      
+      localStorage.setItem('name', newName.trim());
+      setShowEditNameModal(false);
+      setNameError('');
+      alert('Name updated successfully!');
+    } catch (error) {
+      console.error('Error updating name:', error);
+      setNameError(error.response?.data?.detail || 'Failed to update name');
+    }
   };
 
   // Settings handlers
@@ -332,7 +374,7 @@ const hasOpenApplication = () => {
       setSupportMessage('');
     } catch (error) {
       console.error('Error sending message:', error);
-      alert('Error sending message. Please try again or email us directly at support@resumescreening.com');
+      alert('Error sending message. Please try again or email us directly at airesumescreening@gmail.com');
     }
   };
 
@@ -461,12 +503,16 @@ const hasOpenApplication = () => {
             <h1 className="dashboard-title">Candidate Dashboard</h1>
             <div className="welcome-banner" style={{ fontSize: '1.1rem', fontWeight: 500, marginTop: 4 }}>
               Welcome, {(() => {
+                const name = localStorage.getItem('name');
+                if (name) {
+                  return name.charAt(0).toUpperCase() + name.slice(1);
+                }
                 const email = localStorage.getItem('email');
                 const userId = localStorage.getItem('user_id') || 'Candidate';
                 const base = email || userId;
-                const name = base.includes('@') ? base.split('@')[0] : base;
-                return name.charAt(0).toUpperCase() + name.slice(1);
-              })()}!
+                const namePart = base.includes('@') ? base.split('@')[0] : base;
+                return namePart.charAt(0).toUpperCase() + namePart.slice(1);
+              })()}
             </div>
           </div>
         </div>
@@ -514,11 +560,15 @@ const hasOpenApplication = () => {
                 <div className="dashboard-profile-info">
                   <div className="dashboard-profile-email">
                     {(() => {
+                      const name = localStorage.getItem('name');
+                      if (name) {
+                        return name.charAt(0).toUpperCase() + name.slice(1);
+                      }
                       const email = localStorage.getItem('email');
                       const userId = localStorage.getItem('user_id') || 'Candidate User';
                       const base = email || userId;
-                      const name = base.includes('@') ? base.split('@')[0] : base;
-                      return name.charAt(0).toUpperCase() + name.slice(1);
+                      const namePart = base.includes('@') ? base.split('@')[0] : base;
+                      return namePart.charAt(0).toUpperCase() + namePart.slice(1);
                     })()}
                   </div>
                   <div className="dashboard-profile-role">Role: Candidate</div>
@@ -864,15 +914,43 @@ const hasOpenApplication = () => {
 
             {/* Account Info */}
             <div className="profile-section">
-              <h3 className="profile-section-title">Account Information</h3>
+              <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem'}}>
+                <h3 className="profile-section-title" style={{margin: 0}}>Account Information</h3>
+                <button 
+                  onClick={handleEditName}
+                  style={{
+                    padding: '8px 16px',
+                    backgroundColor: '#667eea',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    fontWeight: '500',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                  </svg>
+                  Edit Name
+                </button>
+              </div>
               <div className="profile-info-grid">
                 <div className="profile-info-item">
-                  <span className="profile-info-label">User ID</span>
-                  <span className="profile-info-value">{localStorage.getItem('user_id') || 'â€”'}</span>
+                  <span className="profile-info-label">Name</span>
+                  <span className="profile-info-value">{localStorage.getItem('name') || 'Not set'}</span>
                 </div>
                 <div className="profile-info-item">
                   <span className="profile-info-label">Email</span>
-                  <span className="profile-info-value">{localStorage.getItem('email') || 'â€”'}</span>
+                  <span className="profile-info-value">{localStorage.getItem('email') || '—'}</span>
+                </div>
+                <div className="profile-info-item">
+                  <span className="profile-info-label">User ID</span>
+                  <span className="profile-info-value">{localStorage.getItem('user_id') || '—'}</span>
                 </div>
                 <div className="profile-info-item">
                   <span className="profile-info-label">Member Since</span>
@@ -1128,7 +1206,7 @@ const hasOpenApplication = () => {
                         <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
                         <polyline points="22,6 12,13 2,6"/>
                       </svg>
-                      <span>support@resumescreening.com</span>
+                      <span>airesumescreening@gmail.com</span>
                     </div>
                     <div className="contact-method">
                       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0ea5e9" strokeWidth="2">
@@ -1286,9 +1364,44 @@ const hasOpenApplication = () => {
             </div>
           </div>
         )}
+
+        {/* Edit Name Modal */}
+        {showEditNameModal && (
+          <div className="modal-overlay" onClick={() => setShowEditNameModal(false)}>
+            <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-header">
+                <h3>Edit Name</h3>
+                <button className="modal-close" onClick={() => setShowEditNameModal(false)}>×</button>
+              </div>
+              <div className="modal-body">
+                <div className="form-group">
+                  <label>Full Name</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    value={newName}
+                    onChange={(e) => setNewName(e.target.value)}
+                    placeholder="Enter your full name"
+                    autoFocus
+                  />
+                  {nameError && <div className="error-message" style={{color: 'red', marginTop: '8px', fontSize: '14px'}}>{nameError}</div>}
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button className="modal-btn secondary" onClick={() => setShowEditNameModal(false)}>
+                  Cancel
+                </button>
+                <button className="modal-btn primary" onClick={handleNameSubmit}>
+                  Save
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
 export default CandidateDashboard;
+

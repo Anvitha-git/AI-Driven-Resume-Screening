@@ -5,9 +5,11 @@ intents:
   - goodbye
   - affirm
   - deny
+  - acknowledge
   - start_interview
   - out_of_scope
   - provide_answer
+  - ask_question
 
 entities:
   - job_role
@@ -42,6 +44,9 @@ responses:
   utter_goodbye:
     - text: "Goodbye! Best of luck with your application!"
 
+  utter_acknowledge:
+    - text: "Great! If you have any other questions, feel free to ask. Otherwise, best of luck with your application! 🚀"
+
   utter_ask_ready:
     - text: "Awesome! I'll ask 3–5 short questions. Ready?"
 
@@ -58,6 +63,8 @@ actions:
   - action_start_interview_prep
   - action_ask_next_question
   - action_validate_answer
+  - action_answer_general_question
+  - action_handle_acknowledgment
 
 session_config:
   session_expiration_time: 60

@@ -7,6 +7,7 @@ import './Auth.css';
 
 function SignUp() {
   const navigate = useNavigate();
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -18,12 +19,12 @@ function SignUp() {
     if (e) e.preventDefault();
     setError("");
     setSuccess("");
-    if (!email || !password || !role) {
+    if (!name || !email || !password || !role) {
       setError("Please fill all fields.");
       return;
     }
     try {
-      await axios.post("http://localhost:8000/signup", { email, password, role });
+      await axios.post("http://localhost:8000/signup", { name, email, password, role });
       setSuccess("Sign up successful! Redirecting to login...");
       setTimeout(() => {
         window.location.href = "/login";
@@ -55,6 +56,19 @@ function SignUp() {
           </div>
 
           <form className="modern-auth-form" onSubmit={handleSignUp} autoComplete="off">
+            <div className="form-group">
+              <label htmlFor="name" className="form-label">Full Name</label>
+              <input
+                id="name"
+                className="modern-input"
+                type="text"
+                placeholder="Enter your full name"
+                value={name}
+                onChange={e => setName(e.target.value)}
+                required
+              />
+            </div>
+
             <div className="form-group">
               <label htmlFor="email" className="form-label">Email</label>
               <input

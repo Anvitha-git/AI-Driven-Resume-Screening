@@ -28,6 +28,7 @@ function CustomChatbot() {
   const [inputValue, setInputValue] = useState('');
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [showTooltip, setShowTooltip] = useState(true);
   const messagesEndRef = useRef(null);
 
   const scrollToBottom = () => {
@@ -44,6 +45,21 @@ function CustomChatbot() {
       localStorage.setItem(chatStorageKey, JSON.stringify(messages));
     }
   }, [messages, userId, chatStorageKey]);
+
+  // Auto-hide tooltip after 5 seconds
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setShowTooltip(false);
+    }, 5000);
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Hide tooltip when chat is opened
+  useEffect(() => {
+    if (isOpen) {
+      setShowTooltip(false);
+    }
+  }, [isOpen]);
 
   const sendMessageToRasa = async (message) => {
     const userId = localStorage.getItem('chat_user_id') || localStorage.getItem('user_id') || 'user';
@@ -149,10 +165,19 @@ function CustomChatbot() {
 
   return (
     <>
+      {/* Tooltip notification */}
+      {showTooltip && !isOpen && (
+        <div className="chat-tooltip">
+          👋 Hey there! I'm your assistant. Click to chat!
+        </div>
+      )}
+
       {/* Floating Chat Button */}
       <div 
         className={`chat-button ${isOpen ? 'chat-button-open' : ''}`}
         onClick={() => setIsOpen(!isOpen)}
+        onMouseEnter={() => setShowTooltip(true)}
+        onMouseLeave={() => !isOpen && setTimeout(() => setShowTooltip(false), 2000)}
       >
         {isOpen ? '✕' : '💬'}
       </div>
