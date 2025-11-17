@@ -1,0 +1,417 @@
+/* LIME Explanation Modal Styles */
+
+.explanation-modal-content {
+  background: white;
+  border-radius: 16px;
+  width: 90%;
+  max-width: 900px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+}
+
+.explanation-body {
+  padding: 1.5rem;
+  max-height: calc(90vh - 120px);
+  overflow-y: auto;
+}
+
+.explanation-section {
+  margin-bottom: 2rem;
+  padding: 1.5rem;
+  background: #f8fafc;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+}
+
+.explanation-section h4 {
+  margin: 0 0 1rem 0;
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.section-description {
+  color: #64748b;
+  font-size: 0.875rem;
+  margin-bottom: 1rem;
+}
+
+/* Overall Score */
+.explanation-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.score-badge {
+  font-size: 2rem;
+  font-weight: 700;
+  padding: 0.5rem 1.5rem;
+  border-radius: 12px;
+  min-width: 100px;
+  text-align: center;
+}
+
+.score-badge.score-high {
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: white;
+}
+
+.score-badge.score-medium {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: white;
+}
+
+.score-badge.score-low {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  color: white;
+}
+
+.explanation-summary {
+  color: #475569;
+  font-size: 1rem;
+  line-height: 1.6;
+  margin: 0;
+}
+
+/* Score Breakdown */
+.score-breakdown-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+}
+
+.breakdown-card {
+  background: white;
+  padding: 1rem;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.breakdown-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.breakdown-title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #334155;
+  text-transform: capitalize;
+}
+
+.breakdown-score {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #3b82f6;
+}
+
+.breakdown-bar-container {
+  height: 8px;
+  background: #e2e8f0;
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 0.75rem;
+}
+
+.breakdown-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #60a5fa, #3b82f6);
+  border-radius: 4px;
+  transition: width 0.5s ease;
+}
+
+.breakdown-details {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.75rem;
+  color: #64748b;
+  margin-bottom: 0.5rem;
+}
+
+.breakdown-info {
+  font-size: 0.8125rem;
+  color: #64748b;
+  margin: 0;
+  font-style: italic;
+}
+
+/* Skills Analysis */
+.skills-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.5rem;
+}
+
+.skills-column {
+  background: white;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+}
+
+.skills-header {
+  padding: 0.75rem 1rem;
+  font-weight: 600;
+  font-size: 0.875rem;
+}
+
+.skills-header.matched {
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: white;
+}
+
+.skills-header.missing {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  color: white;
+}
+
+.skills-list {
+  padding: 1rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.skill-tag {
+  padding: 0.375rem 0.75rem;
+  border-radius: 6px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+}
+
+.skill-tag.matched {
+  background: #d1fae5;
+  color: #065f46;
+  border: 1px solid #6ee7b7;
+}
+
+.skill-tag.missing {
+  background: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #fca5a5;
+}
+
+/* LIME Word Importance */
+.lime-words-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 1.5rem;
+}
+
+.lime-column {
+  background: white;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+}
+
+.lime-header {
+  padding: 0.75rem 1rem;
+  font-weight: 600;
+  font-size: 0.875rem;
+  color: white;
+}
+
+.lime-header.positive {
+  background: linear-gradient(135deg, #10b981, #059669);
+}
+
+.lime-header.negative {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+}
+
+.lime-words-list {
+  padding: 1rem;
+}
+
+.lime-word-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.lime-word-item:last-child {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.lime-word {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #334155;
+  min-width: 100px;
+  flex-shrink: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lime-bar-container {
+  flex: 1;
+  height: 6px;
+  background: #f1f5f9;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.lime-bar {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.lime-bar.positive {
+  background: linear-gradient(90deg, #34d399, #10b981);
+}
+
+.lime-bar.negative {
+  background: linear-gradient(90deg, #fbbf24, #f59e0b);
+}
+
+.lime-weight {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #64748b;
+  min-width: 60px;
+  text-align: right;
+  font-family: 'Courier New', monospace;
+}
+
+/* Recommendations */
+.interpretation-block {
+  margin-bottom: 1.5rem;
+}
+
+.interpretation-block:last-child {
+  margin-bottom: 0;
+}
+
+.interpretation-title {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0 0 0.75rem 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.interpretation-title.positive {
+  color: #059669;
+}
+
+.interpretation-title.warning {
+  color: #d97706;
+}
+
+.interpretation-title.info {
+  color: #3b82f6;
+}
+
+.interpretation-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.interpretation-list li {
+  padding: 0.75rem 1rem;
+  margin-bottom: 0.5rem;
+  background: white;
+  border-radius: 8px;
+  border-left: 3px solid #e2e8f0;
+  color: #475569;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+}
+
+.interpretation-list li:last-child {
+  margin-bottom: 0;
+}
+
+.interpretation-title.positive + .interpretation-list li {
+  border-left-color: #10b981;
+  background: #f0fdf4;
+}
+
+.interpretation-title.warning + .interpretation-list li {
+  border-left-color: #f59e0b;
+  background: #fffbeb;
+}
+
+.interpretation-title.info + .interpretation-list li {
+  border-left-color: #3b82f6;
+  background: #eff6ff;
+}
+
+/* Explain Ranking Button */
+.explain-ranking-btn {
+  padding: 0.5rem 1rem;
+  background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 4px rgba(139, 92, 246, 0.2);
+}
+
+.explain-ranking-btn:hover {
+  background: linear-gradient(135deg, #7c3aed, #6d28d9);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(139, 92, 246, 0.3);
+}
+
+.explain-ranking-btn:active {
+  transform: translateY(0);
+}
+
+/* Loading Spinner */
+.loading-spinner {
+  border: 3px solid #f3f4f6;
+  border-top: 3px solid #3b82f6;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  animation: spin 1s linear infinite;
+  margin: 0 auto;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .explanation-modal-content {
+    width: 95%;
+    max-height: 95vh;
+  }
+
+  .score-breakdown-grid,
+  .skills-grid,
+  .lime-words-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .score-badge {
+    font-size: 1.5rem;
+    padding: 0.375rem 1rem;
+  }
+
+  .lime-word {
+    min-width: 80px;
+  }
+}

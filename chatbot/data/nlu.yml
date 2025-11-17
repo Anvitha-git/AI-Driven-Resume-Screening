@@ -32,8 +32,27 @@ nlu:
     - sounds good
     - yes please
     - yep
+    - yes, let's start
+    - yes, I'm ready
+    - let's do it
+
+- intent: acknowledge
+  examples: |
     - ok
     - okay
+    - okk
+    - got it
+    - understood
+    - I see
+    - alright
+    - cool
+    - thanks
+    - thank you
+    - appreciate it
+    - noted
+    - makes sense
+    - fair enough
+    - right
 
 - intent: deny
   examples: |
@@ -74,3 +93,41 @@ nlu:
     - I handled tight deadlines by prioritizing tasks
     - I improved performance metrics significantly
     - I collaborated with cross-functional teams
+    - I would take up online courses
+    - I would learn it through documentation
+    - I'd practice by building projects
+    - I would reach out to my network
+    - I'd study the official tutorials
+    - by taking courses and practicing
+    - through hands-on projects
+    - by reading documentation
+    - I'll learn it quickly
+    - I'd use online resources
+    - through practice and study
+    - I have strong communication skills
+    - by collaborating with others
+    - I'm a fast learner
+    - I can adapt quickly
+- intent: ask_question
+  examples: |
+    - what is the salary?
+    - what are the benefits?
+    - is this remote?
+    - where is the office located?
+    - what is the interview process?
+    - how many rounds are there?
+    - when will I hear back?
+    - what is the company culture like?
+    - tell me about the team
+    - what should I wear?
+    - any tips for preparation?
+    - how long does hiring take?
+    - is work from home available?
+    - what are the next steps?
+    - can you tell me about benefits?
+    - do you offer health insurance?
+    - how much does this pay?
+    - when does the interview happen?
+    - where will I work?
+    - who will interview me?
+    - can I work remotely?

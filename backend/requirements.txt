@@ -12,6 +12,15 @@ opencv-python
 numpy<2
 # Prefer PyTorch-only transformers to avoid TF import
 transformers
+sentence-transformers
 fairlearn
 torch
 pydantic
+# Enhanced NLP and fuzzy matching
+rapidfuzz
+spacy
+# Explainability
+lime
+scikit-learn
+# Email notifications
+python-decouple

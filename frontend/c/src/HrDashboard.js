@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import './Dashboard.css';
+import './ExplanationModal.css';
 
 function HrDashboard() {
   // Auth helpers: refresh expired access tokens and retry the request
@@ -101,26 +102,18 @@ function HrDashboard() {
         decision: r.decision || 'pending',
       }));
       setCandidates(mapped);
+      setCurrentJobId(jdId); // Track the job ID for later submission
       setOpenCandidatesDialog(true);
       
-      // ⚠️ Close the job posting after ranking
-      // Update the job status to 'closed' in the local state
-      setJobs(prevJobs => prevJobs.map(job => 
-        job.jd_id === jdId ? { ...job, status: 'closed' } : job
-      ));
+      // Save to localStorage so dialog persists across page navigation
+      localStorage.setItem('hr_candidates_dialog', JSON.stringify({
+        isOpen: true,
+        jobId: jdId,
+        candidatesList: mapped
+      }));
       
-      // Also update in the database
-      try {
-        await withAuth(async (token) => {
-          await axios.patch(
-            `http://localhost:8000/jobs/${jdId}`,
-            { status: 'closed' },
-            { headers: { Authorization: `Bearer ${token}` } }
-          );
-        });
-      } catch (err) {
-        console.error('Failed to update job status:', err);
-      }
+      // Note: Dialog stays open until HR submits decisions
+      // Job status will be updated when HR clicks "Submit Decisions"
       
     } catch (error) {
       console.error('Rank resumes error:', error);
@@ -157,7 +150,25 @@ function HrDashboard() {
   });
   
   const [candidates, setCandidates] = useState([]);
+  const [currentJobId, setCurrentJobId] = useState(null); // Track which job's candidates are being viewed
   const [openCandidatesDialog, setOpenCandidatesDialog] = useState(false);
+  
+  // Load candidates dialog state from localStorage on mount
+  useEffect(() => {
+    const savedDialogState = localStorage.getItem('hr_candidates_dialog');
+    if (savedDialogState) {
+      try {
+        const { isOpen, jobId, candidatesList } = JSON.parse(savedDialogState);
+        if (isOpen && jobId && candidatesList) {
+          setOpenCandidatesDialog(true);
+          setCurrentJobId(jobId);
+          setCandidates(candidatesList);
+        }
+      } catch (e) {
+        console.error('Failed to restore candidates dialog:', e);
+      }
+    }
+  }, []);
   const [rankingJob, setRankingJob] = useState(null);
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
   const [showSideDrawer, setShowSideDrawer] = useState(false);
@@ -170,8 +181,16 @@ function HrDashboard() {
   const [decisionFilter, setDecisionFilter] = useState('all'); // 'all', 'selected', 'rejected', 'pending'
   
   // Settings state for HR
+  const [showEditNameModal, setShowEditNameModal] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [nameError, setNameError] = useState('');
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [passwordData, setPasswordData] = useState({ current: '', new: '', confirm: '' });
+  
+  // LIME Explanation Modal
+  const [showExplanationModal, setShowExplanationModal] = useState(false);
+  const [currentExplanation, setCurrentExplanation] = useState(null);
+  const [loadingExplanation, setLoadingExplanation] = useState(false);
 
   // Close profile dropdown when clicking outside
   useEffect(() => {
@@ -202,15 +221,18 @@ function HrDashboard() {
   };
 
   // Utility function to format candidate name from email or ID
-  const formatCandidateName = (userId) => {
-    if (!userId) return 'Unknown';
-    // If it's an email, extract the name part
-    if (userId.includes('@')) {
-      const name = userId.split('@')[0];
-      return name.charAt(0).toUpperCase() + name.slice(1);
+  const formatCandidateName = (candidateData) => {
+    if (!candidateData) return 'Unknown';
+    // If candidateData is a string (legacy behavior), process it
+    if (typeof candidateData === 'string') {
+      if (candidateData.includes('@')) {
+        const name = candidateData.split('@')[0];
+        return name.charAt(0).toUpperCase() + name.slice(1);
+      }
+      return candidateData;
     }
-    // If it's a UUID or other ID, return as is (shouldn't happen with emails)
-    return userId;
+    // If it's the full candidate object, return as is
+    return candidateData;
   };
 
   // Function to handle weight changes and auto-adjust others to maintain total = 1.0
@@ -374,14 +396,80 @@ function HrDashboard() {
       ));
       
       // Update local state
-      setCandidates(prev => prev.map(c => 
-        c.id === resumeId ? { ...c, decision } : c
-      ));
+      setCandidates(prev => {
+        const updated = prev.map(c => 
+          c.id === resumeId ? { ...c, decision } : c
+        );
+        
+        // Update localStorage when decisions change
+        if (currentJobId) {
+          localStorage.setItem('hr_candidates_dialog', JSON.stringify({
+            isOpen: true,
+            jobId: currentJobId,
+            candidatesList: updated
+          }));
+        }
+        
+        return updated;
+      });
       
-      alert(`Candidate ${decision}!`);
+      // Success - decision saved (no alert to avoid spam)
     } catch (error) {
       alert('Failed to update decision');
     }
+  };
+
+  // Handler to submit all decisions and close the candidates dialog
+  const handleSubmitDecisions = async () => {
+    const pendingCount = candidates.filter(c => c.decision === 'pending').length;
+    
+    if (pendingCount > 0) {
+      const confirm = window.confirm(
+        `${pendingCount} candidate(s) still have pending decisions. Do you want to submit anyway?`
+      );
+      if (!confirm) return;
+    }
+    
+    // Submit decisions - this will send emails and notifications
+    if (currentJobId) {
+      try {
+        await withAuth(async (token) => {
+          // Call submit-decisions endpoint to send emails and notifications
+          const submitResponse = await axios.post(
+            `http://localhost:8000/hr/jobs/${currentJobId}/submit-decisions`,
+            {},
+            { headers: { Authorization: `Bearer ${token}` } }
+          );
+          
+          console.log('Decisions submitted:', submitResponse.data);
+          
+          // Update job status to closed
+          await axios.patch(
+            `http://localhost:8000/jobs/${currentJobId}`,
+            { status: 'closed' },
+            { headers: { Authorization: `Bearer ${token}` } }
+          );
+        });
+        
+        // Update local state
+        setJobs(prevJobs => prevJobs.map(job => 
+          job.jd_id === currentJobId ? { ...job, status: 'closed' } : job
+        ));
+        
+        alert('Decisions submitted successfully! Candidates have been notified via email.');
+      } catch (err) {
+        console.error('Failed to submit decisions:', err);
+        const errorMsg = err?.response?.data?.detail || err?.message || 'Unknown error';
+        alert(`Failed to submit decisions: ${errorMsg}`);
+        return;
+      }
+    }
+    
+    setOpenCandidatesDialog(false);
+    setCurrentJobId(null);
+    
+    // Clear localStorage when decisions are submitted
+    localStorage.removeItem('hr_candidates_dialog');
   };
 
   const handleViewResume = (fileUrl) => {
@@ -396,6 +484,28 @@ function HrDashboard() {
     window.open(url, '_blank', 'noopener,noreferrer');
   };
 
+  const handleExplainRanking = async (resumeId) => {
+    setLoadingExplanation(true);
+    setShowExplanationModal(true);
+    setCurrentExplanation(null);
+    
+    try {
+      const response = await withAuth(async (token) => {
+        return await axios.get(`http://localhost:8000/explain-ranking/${resumeId}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+      });
+      
+      setCurrentExplanation(response.data);
+    } catch (error) {
+      console.error('Failed to load explanation:', error);
+      alert('Failed to load ranking explanation. Please try again.');
+      setShowExplanationModal(false);
+    } finally {
+      setLoadingExplanation(false);
+    }
+  };
+
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('access_token');
@@ -403,7 +513,39 @@ function HrDashboard() {
     localStorage.removeItem('user_id');
     localStorage.removeItem('role');
     localStorage.removeItem('email');
+    localStorage.removeItem('name');
     navigate('/', { replace: true });
+  };
+
+  // Name editing handlers
+  const handleEditName = () => {
+    const currentName = localStorage.getItem('name') || '';
+    setNewName(currentName);
+    setNameError('');
+    setShowEditNameModal(true);
+  };
+
+  const handleNameSubmit = async () => {
+    if (!newName.trim()) {
+      setNameError('Name cannot be empty');
+      return;
+    }
+    
+    try {
+      const token = getAccessToken();
+      await axios.put('http://localhost:8000/update-name', 
+        { name: newName.trim() },
+        { headers: { Authorization: `Bearer ${token}` }}
+      );
+      
+      localStorage.setItem('name', newName.trim());
+      setShowEditNameModal(false);
+      setNameError('');
+      alert('Name updated successfully!');
+    } catch (error) {
+      console.error('Error updating name:', error);
+      setNameError(error.response?.data?.detail || 'Failed to update name');
+    }
   };
 
   // Settings handlers for HR
@@ -453,14 +595,18 @@ function HrDashboard() {
   // Export handlers
   const handleExportAllJobs = async () => {
     try {
+      console.log('Starting job export...');
       await withAuth(async (token) => {
+        console.log('Fetching jobs from backend...');
         const response = await axios.get('http://localhost:8000/hr/jobs', {
           headers: { Authorization: `Bearer ${token}` }
         });
         
         const jobsData = response.data || [];
+        console.log(`Received ${jobsData.length} jobs from backend`);
+        
         if (jobsData.length === 0) {
-          alert('No jobs to export');
+          alert('No jobs to export. You need to post at least one job first.');
           return;
         }
 
@@ -472,13 +618,15 @@ function HrDashboard() {
             job.jd_id || '',
             `"${(job.title || '').replace(/"/g, '""')}"`,
             `"${(job.description || '').replace(/"/g, '""')}"`,
-            `"${(job.requirements || '').replace(/"/g, '""')}"`,
+            `"${Array.isArray(job.requirements) ? job.requirements.join('; ') : (job.requirements || '').replace(/"/g, '""')}"`,
             job.status || 'open',
             job.deadline || '',
             job.created_at || ''
           ].join(','))
         ].join('\n');
 
+        console.log('CSV generated, downloading file...');
+        
         // Download file
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement('a');
@@ -489,24 +637,32 @@ function HrDashboard() {
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
+        
+        console.log('Export completed successfully!');
+        alert(`Successfully exported ${jobsData.length} job(s)!`);
       });
     } catch (error) {
       console.error('Export error:', error);
-      alert('Failed to export jobs');
+      const errorMsg = error?.response?.data?.detail || error?.message || 'Unknown error';
+      alert(`Failed to export jobs: ${errorMsg}`);
     }
   };
 
   const handleExportApplications = async () => {
     try {
+      console.log('Starting applications export...');
       await withAuth(async (token) => {
         // Get all jobs first
+        console.log('Fetching all jobs...');
         const jobsResponse = await axios.get('http://localhost:8000/hr/jobs', {
           headers: { Authorization: `Bearer ${token}` }
         });
         
         const allJobs = jobsResponse.data || [];
+        console.log(`Found ${allJobs.length} jobs`);
+        
         if (allJobs.length === 0) {
-          alert('No jobs found to export applications from');
+          alert('No jobs found. Please post a job first before exporting applications.');
           return;
         }
 
@@ -514,10 +670,13 @@ function HrDashboard() {
         const allApplications = [];
         for (const job of allJobs) {
           try {
+            console.log(`Fetching candidates for job: ${job.title}`);
             const candidatesResponse = await axios.get(`http://localhost:8000/hr/jobs/${job.jd_id}/candidates`, {
               headers: { Authorization: `Bearer ${token}` }
             });
             const candidates = candidatesResponse.data || [];
+            console.log(`Found ${candidates.length} candidates for job ${job.jd_id}`);
+            
             candidates.forEach(candidate => {
               allApplications.push({
                 jobTitle: job.title,
@@ -535,8 +694,10 @@ function HrDashboard() {
           }
         }
 
+        console.log(`Total applications to export: ${allApplications.length}`);
+
         if (allApplications.length === 0) {
-          alert('No applications to export');
+          alert('No applications to export. Jobs exist but no candidates have applied yet.');
           return;
         }
 
@@ -556,6 +717,8 @@ function HrDashboard() {
           ].join(','))
         ].join('\n');
 
+        console.log('CSV generated, downloading file...');
+        
         // Download file
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement('a');
@@ -566,10 +729,14 @@ function HrDashboard() {
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
+        
+        console.log('Export completed successfully!');
+        alert(`Successfully exported ${allApplications.length} application(s) from ${allJobs.length} job(s)!`);
       });
     } catch (error) {
-      console.error('Export error:', error);
-      alert('Failed to export applications');
+      console.error('Export applications error:', error);
+      const errorMsg = error?.response?.data?.detail || error?.message || 'Unknown error';
+      alert(`Failed to export applications: ${errorMsg}`);
     }
   };
 
@@ -590,10 +757,14 @@ function HrDashboard() {
             <h1 className="dashboard-title">HR Dashboard</h1>
             <div className="dashboard-welcome">
               {(() => {
+                const name = localStorage.getItem('name');
+                if (name) {
+                  return `Welcome, ${name.charAt(0).toUpperCase() + name.slice(1)}`;
+                }
                 const email = localStorage.getItem('email');
                 const base = email || 'HR User';
-                const name = base.includes('@') ? base.split('@')[0] : base;
-                return `Welcome, ${name.charAt(0).toUpperCase() + name.slice(1)}`;
+                const namePart = base.includes('@') ? base.split('@')[0] : base;
+                return `Welcome, ${namePart.charAt(0).toUpperCase() + namePart.slice(1)}`;
               })()}
             </div>
           </div>
@@ -614,11 +785,15 @@ function HrDashboard() {
               <div className="dashboard-profile-info">
                 <div className="dashboard-profile-email">
                   {(() => {
+                    const name = localStorage.getItem('name');
+                    if (name) {
+                      return name.charAt(0).toUpperCase() + name.slice(1);
+                    }
                     const email = localStorage.getItem('email');
                     const userId = localStorage.getItem('user_id') || 'HR User';
                     const base = email || userId;
-                    const name = base.includes('@') ? base.split('@')[0] : base;
-                    return name.charAt(0).toUpperCase() + name.slice(1);
+                    const namePart = base.includes('@') ? base.split('@')[0] : base;
+                    return namePart.charAt(0).toUpperCase() + namePart.slice(1);
                   })()}
                 </div>
                 <div className="dashboard-profile-role">Role: HR</div>
@@ -745,8 +920,7 @@ function HrDashboard() {
                       </thead>
                       <tbody>
                         {historyJobCandidates.map((c) => {
-                          const base = c.candidate_email || c.user_id || 'Candidate';
-                          const name = base.includes('@') ? base.split('@')[0] : base;
+                          const name = c.candidate_name || (c.candidate_email ? c.candidate_email.split('@')[0] : 'Candidate');
                           const prettyName = name.charAt(0).toUpperCase() + name.slice(1);
                           const score = c.match_score != null ? `${(c.match_score * 100).toFixed(1)}%` : '—';
                           const appliedAt = c.applied_at ? new Date(c.applied_at).toLocaleString() : '—';
@@ -966,8 +1140,7 @@ function HrDashboard() {
                     </thead>
                     <tbody>
                       {historyJobCandidates.map((c) => {
-                        const base = c.candidate_email || c.user_id || 'Candidate';
-                        const name = base.includes('@') ? base.split('@')[0] : base;
+                        const name = c.candidate_name || (c.candidate_email ? c.candidate_email.split('@')[0] : 'Candidate');
                         const prettyName = name.charAt(0).toUpperCase() + name.slice(1);
                         const score = c.match_score != null ? `${(c.match_score * 100).toFixed(1)}%` : '—';
                         const appliedAt = c.applied_at ? new Date(c.applied_at).toLocaleString() : '—';
@@ -1004,9 +1177,17 @@ function HrDashboard() {
                 <h2 className="candidates-title">Candidates</h2>
                 <p className="candidates-subtitle">Manage and evaluate candidates for open positions.</p>
               </div>
-              <button className="dashboard-btn-secondary" onClick={() => setOpenCandidatesDialog(false)}>
-                Close
-              </button>
+              <div style={{ display: 'flex', gap: '0.75rem' }}>
+                <button className="dashboard-btn-primary" onClick={handleSubmitDecisions}>
+                  Submit Decisions
+                </button>
+                <button className="dashboard-btn-secondary" onClick={() => {
+                  setOpenCandidatesDialog(false);
+                  localStorage.removeItem('hr_candidates_dialog');
+                }}>
+                  Close
+                </button>
+              </div>
             </div>
 
             {/* Search and Filter */}
@@ -1094,6 +1275,13 @@ function HrDashboard() {
                     onClick={() => handleViewResume(candidate.file_url)}
                   >
                     View Resume
+                  </button>
+                  <button 
+                    className="explain-ranking-btn"
+                    onClick={() => handleExplainRanking(candidate.resume_id)}
+                    title="See why this candidate got this score"
+                  >
+                    🔍 Explain Ranking
                   </button>
                   <select
                     className={`candidate-decision-select-compact decision-${candidate.decision || 'pending'}`}
@@ -1218,15 +1406,43 @@ function HrDashboard() {
 
           {/* Account Info */}
           <div className="profile-section">
-            <h3 className="profile-section-title">Account Information</h3>
+            <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem'}}>
+              <h3 className="profile-section-title" style={{margin: 0}}>Account Information</h3>
+              <button 
+                onClick={handleEditName}
+                style={{
+                  padding: '8px 16px',
+                  backgroundColor: '#667eea',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                </svg>
+                Edit Name
+              </button>
+            </div>
             <div className="profile-info-grid">
               <div className="profile-info-item">
-                <span className="profile-info-label">User ID</span>
-                <span className="profile-info-value">{localStorage.getItem('user_id') || '—'}</span>
+                <span className="profile-info-label">Name</span>
+                <span className="profile-info-value">{localStorage.getItem('name') || 'Not set'}</span>
               </div>
               <div className="profile-info-item">
                 <span className="profile-info-label">Email</span>
                 <span className="profile-info-value">{localStorage.getItem('email') || '—'}</span>
+              </div>
+              <div className="profile-info-item">
+                <span className="profile-info-label">User ID</span>
+                <span className="profile-info-value">{localStorage.getItem('user_id') || '—'}</span>
               </div>
               <div className="profile-info-item">
                 <span className="profile-info-label">Member Since</span>
@@ -1497,7 +1713,7 @@ function HrDashboard() {
                       <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
                       <polyline points="22,6 12,13 2,6"/>
                     </svg>
-                    <span>hr-support@resumescreening.com</span>
+                    <span>airesumescreening@gmail.com</span>
                   </div>
                   <div className="contact-method">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0ea5e9" strokeWidth="2">
@@ -1612,6 +1828,213 @@ function HrDashboard() {
                 Change Password
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Name Modal */}
+      {showEditNameModal && (
+        <div className="modal-overlay" onClick={() => setShowEditNameModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Edit Name</h3>
+              <button className="modal-close" onClick={() => setShowEditNameModal(false)}>×</button>
+            </div>
+            <div className="modal-body">
+              <div className="form-group">
+                <label>Full Name</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                  placeholder="Enter your full name"
+                  autoFocus
+                />
+                {nameError && <div className="error-message" style={{color: 'red', marginTop: '8px', fontSize: '14px'}}>{nameError}</div>}
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="modal-btn secondary" onClick={() => setShowEditNameModal(false)}>
+                Cancel
+              </button>
+              <button className="modal-btn primary" onClick={handleNameSubmit}>
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* LIME Explanation Modal */}
+      {showExplanationModal && (
+        <div className="modal-overlay" onClick={() => setShowExplanationModal(false)}>
+          <div className="explanation-modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>🔍 Ranking Explanation</h3>
+              <button className="modal-close" onClick={() => setShowExplanationModal(false)}>×</button>
+            </div>
+            
+            {loadingExplanation ? (
+              <div className="modal-body" style={{textAlign: 'center', padding: '3rem'}}>
+                <div className="loading-spinner"></div>
+                <p style={{marginTop: '1rem', color: '#64748b'}}>Analyzing resume...</p>
+              </div>
+            ) : currentExplanation ? (
+              <div className="modal-body explanation-body">
+                {/* Overall Score */}
+                <div className="explanation-section">
+                  <div className="explanation-header">
+                    <h4>Overall Match Score</h4>
+                    <div className={`score-badge ${currentExplanation.overall_score >= 75 ? 'score-high' : currentExplanation.overall_score >= 60 ? 'score-medium' : 'score-low'}`}>
+                      {currentExplanation.overall_score}%
+                    </div>
+                  </div>
+                  <p className="explanation-summary">{currentExplanation.interpretation.summary}</p>
+                </div>
+
+                {/* Score Breakdown */}
+                <div className="explanation-section">
+                  <h4>Score Breakdown</h4>
+                  <div className="score-breakdown-grid">
+                    {Object.entries(currentExplanation.score_breakdown).map(([key, data]) => (
+                      <div key={key} className="breakdown-card">
+                        <div className="breakdown-header">
+                          <span className="breakdown-title">{key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</span>
+                          <span className="breakdown-score">{data.score}%</span>
+                        </div>
+                        <div className="breakdown-bar-container">
+                          <div className="breakdown-bar" style={{width: `${data.score}%`}}></div>
+                        </div>
+                        <div className="breakdown-details">
+                          <span className="breakdown-weight">Weight: {data.weight}%</span>
+                          <span className="breakdown-contribution">Contribution: {data.contribution}%</span>
+                        </div>
+                        <p className="breakdown-info">{data.details}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Matched & Missing Skills */}
+                {(currentExplanation.matched_skills.length > 0 || currentExplanation.missing_skills.length > 0) && (
+                  <div className="explanation-section">
+                    <h4>Skills Analysis</h4>
+                    <div className="skills-grid">
+                      {currentExplanation.matched_skills.length > 0 && (
+                        <div className="skills-column">
+                          <div className="skills-header matched">
+                            <span>✅ Matched Skills ({currentExplanation.matched_skills.length})</span>
+                          </div>
+                          <div className="skills-list">
+                            {currentExplanation.matched_skills.map((skill, idx) => (
+                              <span key={idx} className="skill-tag matched">{skill}</span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {currentExplanation.missing_skills.length > 0 && (
+                        <div className="skills-column">
+                          <div className="skills-header missing">
+                            <span>❌ Missing Skills ({currentExplanation.missing_skills.length})</span>
+                          </div>
+                          <div className="skills-list">
+                            {currentExplanation.missing_skills.slice(0, 10).map((skill, idx) => (
+                              <span key={idx} className="skill-tag missing">{skill}</span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* LIME Word Importance */}
+                {currentExplanation.top_positive_words && currentExplanation.top_positive_words.length > 0 && (
+                  <div className="explanation-section">
+                    <h4>Word-Level Impact Analysis</h4>
+                    <p className="section-description">These words/phrases had the most influence on the ranking score:</p>
+                    
+                    <div className="lime-words-grid">
+                      <div className="lime-column">
+                        <div className="lime-header positive">
+                          <span>📈 Positive Impact</span>
+                        </div>
+                        <div className="lime-words-list">
+                          {currentExplanation.top_positive_words.slice(0, 8).map(([word, weight], idx) => (
+                            <div key={idx} className="lime-word-item">
+                              <span className="lime-word">{word}</span>
+                              <div className="lime-bar-container">
+                                <div className="lime-bar positive" style={{width: `${Math.min(100, weight * 500)}%`}}></div>
+                              </div>
+                              <span className="lime-weight">+{weight.toFixed(3)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {currentExplanation.top_negative_words && currentExplanation.top_negative_words.length > 0 && (
+                        <div className="lime-column">
+                          <div className="lime-header negative">
+                            <span>📉 Negative Impact</span>
+                          </div>
+                          <div className="lime-words-list">
+                            {currentExplanation.top_negative_words.slice(0, 8).map(([word, weight], idx) => (
+                              <div key={idx} className="lime-word-item">
+                                <span className="lime-word">{word}</span>
+                                <div className="lime-bar-container">
+                                  <div className="lime-bar negative" style={{width: `${Math.min(100, Math.abs(weight) * 500)}%`}}></div>
+                                </div>
+                                <span className="lime-weight">{weight.toFixed(3)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Interpretation */}
+                <div className="explanation-section">
+                  <h4>Recommendations</h4>
+                  {currentExplanation.interpretation.strengths.length > 0 && (
+                    <div className="interpretation-block">
+                      <h5 className="interpretation-title positive">💪 Strengths</h5>
+                      <ul className="interpretation-list">
+                        {currentExplanation.interpretation.strengths.map((item, idx) => (
+                          <li key={idx}>{item}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {currentExplanation.interpretation.weaknesses.length > 0 && (
+                    <div className="interpretation-block">
+                      <h5 className="interpretation-title warning">⚠️ Weaknesses</h5>
+                      <ul className="interpretation-list">
+                        {currentExplanation.interpretation.weaknesses.map((item, idx) => (
+                          <li key={idx}>{item}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {currentExplanation.interpretation.recommendations.length > 0 && (
+                    <div className="interpretation-block">
+                      <h5 className="interpretation-title info">💡 Decision Guidance</h5>
+                      <ul className="interpretation-list">
+                        {currentExplanation.interpretation.recommendations.map((item, idx) => (
+                          <li key={idx}>{item}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="modal-body" style={{textAlign: 'center', padding: '3rem'}}>
+                <p>No explanation data available</p>
+              </div>
+            )}
           </div>
         </div>
       )}

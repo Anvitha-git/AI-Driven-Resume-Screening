@@ -11,6 +11,7 @@ import logging
 from ai_processor import extract_text, extract_structured_data, rank_resumes, extract_skills_from_text
 import requests
 from urllib.parse import urlparse
+from email_service import send_decision_email
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -59,6 +60,7 @@ class User(BaseModel):
     email: str
     password: str
     role: Optional[str] = None
+    name: Optional[str] = None
 
 class Notification(BaseModel):
     user_id: str
@@ -67,37 +69,43 @@ class Notification(BaseModel):
 
 class Decision(BaseModel):
     decision: str  # "selected", "rejected", "pending"
+
+class UpdateNameRequest(BaseModel):
+    name: str
+
 # Helpers
 def _signed_url_for(file_url: Optional[str]) -> Optional[str]:
-    """Create a short-lived signed URL for a stored object based on its public URL.
-    Falls back to the original URL if signing fails.
+    """Create a public URL for a stored object.
+    Simplified to use public URLs since signed URL creation was failing.
     """
     try:
         if not file_url:
             return None
-        parsed = urlparse(file_url)
-        # Expect path like /storage/v1/object/public/resumes/<object_path>
-        path = parsed.path or ""
-        marker = "/object/"
-        if marker not in path:
+        
+        # If it's already a full URL, return it
+        if file_url.startswith("http"):
             return file_url
-        # Find object path after bucket name
-        # We specifically look for the 'resumes/' bucket path
-        idx = path.find("/resumes/")
-        if idx == -1:
-            return file_url
-        object_path = path[idx + len("/resumes/"):]
-        # Request signed URL (1 hour)
-        signed = supabase_service.storage.from_("resumes").create_signed_url(object_path, 3600)
-        if isinstance(signed, dict):
-            url = signed.get("data", {}).get("signedUrl") or signed.get("signedUrl")
-            if url:
-                # Some clients return a relative path starting with '/'
-                if url.startswith("/"):
-                    return f"{SUPABASE_URL}{url}"
-                return url
-        return file_url
-    except Exception:
+        
+        # Extract the object path from various formats
+        object_path = None
+        
+        # Format 1: "resumes/filename.pdf"
+        if file_url.startswith("resumes/"):
+            object_path = file_url
+        # Format 2: "/storage/v1/object/public/resumes/filename.pdf"
+        elif "/resumes/" in file_url:
+            idx = file_url.find("/resumes/")
+            object_path = file_url[idx+1:]  # Skip the leading /
+        else:
+            object_path = f"resumes/{file_url}"
+        
+        # Construct public URL
+        public_url = f"{SUPABASE_URL}/storage/v1/object/public/{object_path}"
+        logging.info(f"Constructed public URL: {public_url}")
+        return public_url
+        
+    except Exception as e:
+        logging.error(f"Error creating URL for {file_url}: {e}")
         return file_url
 
 
@@ -107,14 +115,14 @@ class RefreshRequest(BaseModel):
 @app.post("/signup")
 async def signup(user: User):
     try:
-        logging.info(f"Signup attempt: email={user.email}, role={user.role}")
-        # Create user in Supabase Auth with role in user_metadata
+        logging.info(f"Signup attempt: email={user.email}, role={user.role}, name={user.name}")
+        # Create user in Supabase Auth with role and name in user_metadata
         # Using options.data for user_metadata as per Supabase v2 Python client
         response = supabase_auth.auth.sign_up({
             "email": user.email,
             "password": user.password,
             "options": {
-                "data": {"role": user.role},
+                "data": {"role": user.role, "name": user.name},
                 "email_redirect_to": None
             }
         })
@@ -129,7 +137,8 @@ async def signup(user: User):
                 supabase_service.table("user_profiles").insert({
                     "user_id": response.user.id,
                     "email": user.email,
-                    "role": user.role
+                    "role": user.role,
+                    "name": user.name
                 }).execute()
                 logging.info(f"User profile created for {user.email}")
                 
@@ -138,7 +147,8 @@ async def signup(user: User):
                     supabase_service.table("users").insert({
                         "user_id": response.user.id,
                         "email": user.email,
-                        "role": user.role
+                        "role": user.role,
+                        "name": user.name
                     }).execute()
                     logging.info(f"User created in users table for {user.email}")
                 except Exception as users_error:
@@ -180,21 +190,83 @@ async def login(user: User):
             "password": user.password
         })
         logging.info(f"Login successful for {user.email}")
-        # Get role from user_metadata
+        # Get role and name from user_metadata
         role = None
+        name = None
         if response.user and response.user.user_metadata:
             role = response.user.user_metadata.get("role")
-        logging.info(f"User role: {role}, user_id: {response.user.id}")
+            name = response.user.user_metadata.get("name")
+        logging.info(f"User role: {role}, name: {name}, user_id: {response.user.id}")
         return {
             "access_token": response.session.access_token,
             "refresh_token": response.session.refresh_token,
             "token_type": "bearer",
             "role": role,
-            "user_id": response.user.id
+            "user_id": response.user.id,
+            "name": name
         }
     except Exception as e:
         logging.exception(f"Login error for {user.email}")
         raise HTTPException(status_code=401, detail=f"Invalid credentials: {str(e)}")
+
+@app.put("/update-name")
+async def update_name(request: UpdateNameRequest, token: str = Depends(oauth2_scheme)):
+    try:
+        # Get current user using their token
+        res = supabase_auth.auth.get_user(token)
+        user = res.user
+        user_id = user.id
+        
+        new_name = request.name.strip()
+        
+        if not new_name:
+            raise HTTPException(status_code=400, detail="Name cannot be empty")
+        
+        logging.info(f"Updating name for user {user_id} to '{new_name}'")
+        
+        # Get current role from metadata
+        current_role = user.user_metadata.get("role") if user.user_metadata else None
+        
+        # Update user_metadata in Supabase Auth using the user's own token
+        # We need to use the update_user method which works with the user's token
+        auth_headers = {
+            "apikey": SUPABASE_ANON_KEY,
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json"
+        }
+        auth_url = f"{SUPABASE_URL}/auth/v1/user"
+        auth_response = requests.put(
+            auth_url,
+            headers=auth_headers,
+            json={"data": {"name": new_name, "role": current_role}}
+        )
+        
+        if auth_response.status_code not in [200, 201]:
+            logging.error(f"Failed to update auth metadata: {auth_response.text}")
+        
+        # Update in user_profiles table
+        try:
+            supabase_service.table("user_profiles").update({
+                "name": new_name
+            }).eq("user_id", user_id).execute()
+        except Exception as profile_error:
+            logging.warning(f"Could not update user_profiles: {profile_error}")
+        
+        # Update in users table
+        try:
+            supabase_service.table("users").update({
+                "name": new_name
+            }).eq("user_id", user_id).execute()
+        except Exception as users_error:
+            logging.warning(f"Could not update users table: {users_error}")
+        
+        logging.info(f"Name updated successfully for user {user_id}")
+        return {"message": "Name updated successfully", "name": new_name}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.exception(f"Error updating name for user")
+        raise HTTPException(status_code=500, detail=f"Failed to update name: {str(e)}")
 
 @app.post("/refresh")
 async def refresh_token_endpoint(body: RefreshRequest):
@@ -247,6 +319,7 @@ async def create_job(job: JobPosting, user=Depends(get_current_user)):
         
         # Extract skills from requirements if it's a paragraph
         processed_requirements = job.requirements
+        
         if len(job.requirements) == 1 and len(job.requirements[0]) > 50:
             # It's likely a paragraph, extract skills
             extracted_skills = extract_skills_from_text(job.requirements[0])
@@ -274,6 +347,39 @@ async def get_jobs():
         return response.data
     except Exception as e:
         logging.exception("Error fetching jobs")
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
+@app.get("/jobs/{jd_id}")
+async def get_job_by_id(jd_id: str):
+    try:
+        response = supabase_service.table("job_descriptions").select("*").eq("jd_id", jd_id).execute()
+        if not response.data or len(response.data) == 0:
+            raise HTTPException(status_code=404, detail="Job not found")
+        return response.data[0]
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.exception("Error fetching job")
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
+# Update job status (e.g., close a job posting)
+@app.patch("/jobs/{jd_id}")
+async def update_job_status(jd_id: str, status: Dict[str, str], user=Depends(get_current_user)):
+    if user.role not in ["HR", "demo_hr"]:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    try:
+        # Verify job belongs to this HR user
+        job = supabase_service.table("job_descriptions").select("hr_user_id").eq("jd_id", jd_id).execute()
+        if not job.data or job.data[0]["hr_user_id"] != user.id:
+            raise HTTPException(status_code=403, detail="Not authorized to update this job")
+        
+        # Update job status
+        supabase_service.table("job_descriptions").update(status).eq("jd_id", jd_id).execute()
+        return {"message": "Job status updated successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.exception("Error updating job status")
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
 # Add signup endpoint
@@ -343,24 +449,69 @@ async def upload_resume(
         logging.info(f"[RESUME UPLOAD DEBUG] Skills: {structured_data.get('skills')}")
         logging.info(f"[RESUME UPLOAD DEBUG] Experience: {structured_data.get('experience')}")
         
+        # Fetch JD for context-aware data storage
+        jd_data = None
+        try:
+            jd_response = supabase_service.table("job_descriptions").select("title, description, requirements").eq("jd_id", jd_id).execute()
+            logging.info(f"[RESUME UPLOAD DEBUG] JD response: {jd_response}")
+            if jd_response.data and len(jd_response.data) > 0:
+                jd_data = jd_response.data[0]
+                logging.info(f"[RESUME UPLOAD] Fetched JD: {jd_data.get('title')}")
+        except Exception as jd_error:
+            logging.exception(f"Could not fetch JD data: {jd_error}")
+        
         # Generate neutral insights for candidate improvement
         insights = "" if "project" in text.lower() else "Add specific project details for stronger impact."
         
+        # Calculate skill match for quick reference
+        skill_match_count = 0
+        if jd_data and jd_data.get("requirements"):
+            resume_skills_lower = [s.lower() for s in structured_data.get("skills", [])]
+            jd_requirements = jd_data.get("requirements", [])
+            if isinstance(jd_requirements, list):
+                for jd_skill in jd_requirements:
+                    if jd_skill and jd_skill.lower() in resume_skills_lower:
+                        skill_match_count += 1
+        
         # Use service role client (bypasses RLS) - user already authenticated via get_current_user
-        data = supabase_service.table("resumes").insert({
+        resume_data = {
             "user_id": user.id,
             "jd_id": jd_id,
             "file_url": file_url,
             "extracted_text": text,
-            "insights": insights,
-            **structured_data
-        }).execute()
-        supabase_service.table("applications").insert({
-            "user_id": user.id,
-            "jd_id": jd_id,
-            "resume_id": data.data[0]["resume_id"],
-            "status": "applied"
-        }).execute()
+            "insights": insights
+        }
+        
+        # Add optional fields only if they exist
+        if "skills" in structured_data:
+            resume_data["skills"] = structured_data["skills"]
+        if "experience" in structured_data:
+            resume_data["experience"] = structured_data["experience"]
+        if "education" in structured_data:
+            resume_data["education"] = structured_data["education"]
+        
+        logging.info(f"[RESUME UPLOAD] Inserting resume data")
+        
+        try:
+            data = supabase_service.table("resumes").insert(resume_data).execute()
+            logging.info(f"[RESUME UPLOAD SUCCESS] Resume inserted with ID: {data.data[0]['resume_id']}")
+        except Exception as resume_insert_error:
+            logging.exception(f"[RESUME UPLOAD ERROR] Failed to insert resume")
+            raise HTTPException(status_code=500, detail=f"Failed to insert resume: {str(resume_insert_error)}")
+        
+        try:
+            supabase_service.table("applications").insert({
+                "user_id": user.id,
+                "jd_id": jd_id,
+                "resume_id": data.data[0]["resume_id"],
+                "status": "applied"
+            }).execute()
+            logging.info(f"[RESUME UPLOAD SUCCESS] Application created for resume {data.data[0]['resume_id']}")
+        except Exception as app_insert_error:
+            logging.exception(f"[RESUME UPLOAD ERROR] Failed to create application")
+            # Don't fail the whole upload if notification fails
+            pass
+        
         os.remove(temp_file)
         
         # Create notification for candidate
@@ -661,6 +812,7 @@ async def mark_notification_read(notif_id: str, user=Depends(get_current_user)):
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
 # Decision endpoint (for HR to accept/reject candidates)
+# This only saves the decision - emails are sent when HR clicks "Submit Decisions"
 @app.post("/decisions/{resume_id}")
 async def make_decision(resume_id: str, decision: Decision, user=Depends(get_current_user)):
     if user.role not in ["HR", "demo_hr"]:
@@ -668,29 +820,333 @@ async def make_decision(resume_id: str, decision: Decision, user=Depends(get_cur
     try:
         from datetime import datetime
         
-        # Update resume with decision
+        # Update resume with decision (NO email or notification sent yet)
         resume = supabase_service.table("resumes").update({
             "decision": decision.decision,
             "decided_at": datetime.now().isoformat(),
             "decided_by": user.id
         }).eq("resume_id", resume_id).execute()
         
-        # Get candidate user_id
-        candidate_user_id = resume.data[0]["user_id"]
-        
-        # Create notification for candidate
-        message = f"Your application has been {decision.decision}"
-        supabase_service.table("notifications").insert({
-            "user_id": candidate_user_id,
-            "message": message,
-            "type": "decision"
-        }).execute()
-        
-        return {"message": "Decision updated successfully"}
+        return {"message": "Decision saved successfully"}
     except Exception as e:
         logging.exception("Error updating decision")
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
+# Submit all decisions for a job - sends emails and notifications
+@app.post("/hr/jobs/{jd_id}/submit-decisions")
+async def submit_decisions(jd_id: str, user=Depends(get_current_user)):
+    if user.role not in ["HR", "demo_hr"]:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    try:
+        # Get all resumes for this job with non-pending decisions
+        resumes = supabase_service.table("resumes").select(
+            "resume_id, user_id, decision"
+        ).eq("jd_id", jd_id).neq("decision", "pending").execute()
+        
+        if not resumes.data:
+            return {"message": "No decisions to submit", "emails_sent": 0}
+        
+        # Get job title
+        job_data = supabase_service.table("job_descriptions").select("title").eq("jd_id", jd_id).execute()
+        job_title = job_data.data[0]["title"] if job_data.data else "the position"
+        
+        emails_sent = 0
+        notifications_sent = 0
+        
+        for resume in resumes.data:
+            candidate_user_id = resume["user_id"]
+            decision = resume["decision"]
+            
+            # Get candidate email
+            candidate_profile = supabase_service.table("user_profiles").select("email").eq("user_id", candidate_user_id).execute()
+            candidate_email = candidate_profile.data[0]["email"] if candidate_profile.data else None
+            
+            # Extract candidate name from email
+            candidate_name = "Candidate"
+            if candidate_email:
+                name_part = candidate_email.split('@')[0]
+                if '.' in name_part:
+                    parts = name_part.split('.')
+                    candidate_name = ' '.join([p.capitalize() for p in parts])
+                else:
+                    candidate_name = name_part.capitalize()
+            
+            # Send email notification
+            if candidate_email:
+                email_sent = send_decision_email(
+                    candidate_email=candidate_email,
+                    candidate_name=candidate_name,
+                    job_title=job_title,
+                    decision=decision,
+                    company_name="AI Resume Screening System"
+                )
+                if email_sent:
+                    emails_sent += 1
+                logging.info(f"Email notification {'sent' if email_sent else 'failed'} to {candidate_email} for decision: {decision}")
+            
+            # Create in-app notification
+            message = f"Your application for {job_title} has been {decision}"
+            supabase_service.table("notifications").insert({
+                "user_id": candidate_user_id,
+                "message": message,
+                "type": "decision"
+            }).execute()
+            notifications_sent += 1
+        
+        logging.info(f"Submitted decisions for job {jd_id}: {emails_sent} emails sent, {notifications_sent} notifications created")
+        return {
+            "message": "Decisions submitted successfully",
+            "emails_sent": emails_sent,
+            "notifications_sent": notifications_sent,
+            "total_decisions": len(resumes.data)
+        }
+    except Exception as e:
+        logging.exception("Error submitting decisions")
+        raise HTTPException(status_code=500, detail=f"Error submitting decisions: {str(e)}")
+
 @app.get("/")
 async def root():
     return {"message": "Hello from FastAPI!"}
+
+@app.get("/test-resume/{user_id}/{jd_id}")
+async def test_resume(user_id: str, jd_id: str):
+    """Test endpoint to check if resume exists"""
+    try:
+        result = supabase_service.table("resumes").select("*").eq("user_id", user_id).eq("jd_id", jd_id).execute()
+        return {
+            "user_id": user_id,
+            "jd_id": jd_id,
+            "found": len(result.data) if result.data else 0,
+            "resumes": result.data
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+# Chatbot-specific endpoint: Get extracted resume and JD data for personalized questions
+@app.get("/chatbot/candidate-context/{user_id}/{jd_id}")
+async def get_candidate_context_for_chatbot(user_id: str, jd_id: str):
+    """
+    Fetch extracted resume and JD data for chatbot to generate personalized interview questions.
+    This endpoint returns all necessary context without authentication (used by chatbot service).
+    """
+    try:
+        logging.info(f"[CHATBOT] Fetching context for user_id={user_id}, jd_id={jd_id}")
+        
+        # Fetch the most recent resume for this user and job
+        resume_resp = (
+            supabase_service
+            .table("resumes")
+            .select("resume_id, extracted_text, skills, experience, education, score, upload_date")
+            .eq("user_id", user_id)
+            .eq("jd_id", jd_id)
+            .order("upload_date", desc=True)
+            .limit(1)
+            .execute()
+        )
+        
+        logging.info(f"[CHATBOT] Resume query result: {len(resume_resp.data) if resume_resp.data else 0} records")
+        
+        # Fetch the job description with extracted data
+        jd_resp = (
+            supabase_service
+            .table("job_descriptions")
+            .select("jd_id, title, description, requirements")
+            .eq("jd_id", jd_id)
+            .execute()
+        )
+        
+        if not resume_resp.data or not jd_resp.data:
+            raise HTTPException(
+                status_code=404, 
+                detail=f"No resume or job description found for user_id={user_id}, jd_id={jd_id}"
+            )
+        
+        resume = resume_resp.data[0]
+        jd = jd_resp.data[0]
+        
+        # Calculate skill matches for question generation
+        resume_skills = set([s.lower() for s in (resume.get("skills") or [])])
+        jd_requirements = jd.get("requirements") or []
+        # Requirements might be a list of strings or a string - handle both
+        if isinstance(jd_requirements, str):
+            jd_skills = set([jd_requirements.lower()])
+        elif isinstance(jd_requirements, list):
+            jd_skills = set([s.lower() for s in jd_requirements])
+        else:
+            jd_skills = set()
+        matched_skills = list(resume_skills.intersection(jd_skills))
+        missing_skills = list(jd_skills - resume_skills)
+        
+        # Prepare context for chatbot
+        context = {
+            "user_id": user_id,
+            "jd_id": jd_id,
+            "resume": {
+                "resume_id": resume.get("resume_id"),
+                "skills": resume.get("skills", []),
+                "experience": resume.get("experience", []),
+                "education": resume.get("education", []),
+                "extracted_text_preview": resume.get("extracted_text", "")[:500],  # First 500 chars
+                "match_score": resume.get("score")
+            },
+            "job_description": {
+                "title": jd.get("title"),
+                "description": jd.get("description"),
+                "requirements": jd.get("requirements", []),
+                "jd_skills": jd.get("jd_skills", []),
+                "jd_experience": jd.get("jd_experience", []),
+                "jd_education": jd.get("jd_education", [])
+            },
+            "skill_analysis": {
+                "matched_skills": matched_skills[:5],  # Top 5 matched skills
+                "missing_skills": missing_skills[:3],  # Top 3 missing skills
+                "match_percentage": int((len(matched_skills) / len(jd_skills) * 100)) if jd_skills else 0
+            },
+            "question_hints": {
+                "focus_areas": matched_skills[:3],  # Ask about their strongest matching skills
+                "growth_areas": missing_skills[:2],  # Ask how they'd learn missing skills
+                "experience_level": len(resume.get("experience", [])),
+                "education_level": resume.get("education", [{}])[0].get("degree") if resume.get("education") else None
+            }
+        }
+        
+        logging.info(f"[CHATBOT CONTEXT] Generated context for user {user_id}, jd {jd_id}")
+        logging.info(f"[CHATBOT CONTEXT] Matched skills: {matched_skills}")
+        logging.info(f"[CHATBOT CONTEXT] Missing skills: {missing_skills}")
+        
+        return context
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.exception("Error fetching chatbot context")
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
+
+# LIME Explainability endpoint for HR Dashboard
+@app.get("/explain-ranking/{resume_id}")
+async def explain_resume_ranking(resume_id: str, token: str = Depends(oauth2_scheme)):
+    """
+    Generate LIME-based explanation for why a resume received its ranking score.
+    Shows HR what factors contributed to the ranking decision.
+    
+    Returns:
+    - Overall score breakdown (skills, semantic, experience, education)
+    - LIME word-level importance
+    - Top positive/negative words
+    - Matched and missing skills
+    """
+    try:
+        # Verify user is authenticated
+        user = await get_current_user(token)
+        if not user:
+            raise HTTPException(status_code=401, detail="Invalid authentication")
+        
+        logging.info(f"[EXPLAIN] Generating explanation for resume_id={resume_id} by user {user.id}")
+        
+        # Fetch the resume
+        resume_resp = (
+            supabase_service
+            .table("resumes")
+            .select("resume_id, user_id, jd_id, extracted_text, skills, experience, education, score")
+            .eq("resume_id", resume_id)
+            .execute()
+        )
+        
+        if not resume_resp.data or len(resume_resp.data) == 0:
+            raise HTTPException(status_code=404, detail="Resume not found")
+        
+        resume = resume_resp.data[0]
+        
+        # Fetch the associated job description
+        jd_resp = (
+            supabase_service
+            .table("job_descriptions")
+            .select("jd_id, title, description, requirements")
+            .eq("jd_id", resume["jd_id"])
+            .execute()
+        )
+        
+        if not jd_resp.data or len(jd_resp.data) == 0:
+            raise HTTPException(status_code=404, detail="Job description not found")
+        
+        jd = jd_resp.data[0]
+        
+        # Parse requirements
+        jd_requirements = jd.get("requirements") or []
+        if isinstance(jd_requirements, str):
+            jd_requirements = [jd_requirements]
+        
+        # Generate LIME explanation
+        from ai_processor import explain_ranking_with_lime
+        
+        explanation = explain_ranking_with_lime(
+            resume_text=resume.get("extracted_text", ""),
+            jd_requirements=jd_requirements,
+            resume_data={
+                "skills": resume.get("skills", []),
+                "experience": resume.get("experience", []),
+                "education": resume.get("education", [])
+            },
+            num_features=15
+        )
+        
+        # Add metadata
+        explanation["resume_id"] = resume_id
+        explanation["candidate_name"] = resume.get("user_id", "Unknown")
+        explanation["job_title"] = jd.get("title", "Unknown Position")
+        
+        # Generate human-readable interpretation
+        score = explanation["overall_score"]
+        breakdown = explanation["score_breakdown"]
+        
+        strengths = []
+        weaknesses = []
+        recommendations = []
+        
+        # Analyze skill matching
+        if breakdown["skill_match"]["score"] >= 70:
+            strengths.append(f"Strong skill match: {breakdown['skill_match']['details']}")
+        elif breakdown["skill_match"]["score"] < 50:
+            weaknesses.append(f"Limited skill match: {breakdown['skill_match']['details']}")
+            recommendations.append("Consider candidates with more relevant technical skills")
+        
+        # Analyze semantic relevance
+        if breakdown["semantic_similarity"]["score"] >= 70:
+            strengths.append("Resume content highly relevant to job description")
+        elif breakdown["semantic_similarity"]["score"] < 50:
+            weaknesses.append("Resume content has low relevance to job requirements")
+        
+        # Analyze experience
+        if breakdown["experience"]["score"] >= 70:
+            strengths.append(f"Good experience level: {breakdown['experience']['details']}")
+        elif breakdown["experience"]["score"] < 30:
+            weaknesses.append("Limited or no professional experience listed")
+            recommendations.append("May need additional training or mentorship")
+        
+        # Overall recommendation
+        if score >= 75:
+            recommendations.append("🟢 STRONG CANDIDATE: Recommend for interview")
+        elif score >= 60:
+            recommendations.append("🟡 MODERATE CANDIDATE: Consider if other candidates unavailable")
+        else:
+            recommendations.append("🔴 WEAK CANDIDATE: May not meet requirements")
+        
+        explanation["interpretation"] = {
+            "summary": f"This resume scored {score}% overall. " + 
+                      f"Skill match contributed {breakdown['skill_match']['contribution']}%, " +
+                      f"semantic relevance {breakdown['semantic_similarity']['contribution']}%.",
+            "strengths": strengths,
+            "weaknesses": weaknesses,
+            "recommendations": recommendations
+        }
+        
+        logging.info(f"[EXPLAIN] Generated explanation for resume {resume_id}: {score}%")
+        
+        return explanation
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.exception("Error generating explanation")
+        raise HTTPException(status_code=500, detail=f"Failed to generate explanation: {str(e)}")

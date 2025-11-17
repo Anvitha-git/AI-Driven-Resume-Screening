@@ -30,3 +30,15 @@ stories:
   steps:
   - intent: goodbye
   - action: utter_goodbye
+
+- story: user acknowledges information
+  steps:
+  - intent: ask_question
+  - action: action_answer_general_question
+  - intent: acknowledge
+  - action: action_handle_acknowledgment
+
+- story: user says ok after general question
+  steps:
+  - intent: acknowledge
+  - action: action_handle_acknowledgment

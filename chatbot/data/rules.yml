@@ -11,3 +11,7 @@ rules:
     - current_question_index
   steps:
   - action: action_ask_next_question
+- rule: Answer general questions
+  steps:
+  - intent: ask_question
+  - action: action_answer_general_question
