@@ -464,17 +464,55 @@ def explain_ranking_with_lime(resume_text, jd_requirements, resume_data, num_fea
         resume_skills_list = [resume_skills_list]
     resume_skills = set([s.lower().strip() for s in resume_skills_list if s])
     
+    # Exact match
     exact_matches = resume_skills.intersection(required_skills)
+    
+    # Fuzzy match for remaining required skills
+    fuzzy_match_count = 0
+    resume_text_lower = resume_text.lower()
+    for req_skill in required_skills:
+        if req_skill not in resume_skills:
+            # Check if skill appears in resume text
+            if req_skill in resume_text_lower:
+                fuzzy_match_count += 0.8  # Partial credit for text mention
+            else:
+                # Use fuzzy string matching
+                for resume_skill in resume_skills:
+                    if fuzz.ratio(req_skill, resume_skill) > 85:
+                        fuzzy_match_count += 0.9
+                        break
+    
+    total_matches = len(exact_matches) + fuzzy_match_count
+    skill_score = min(1.0, total_matches / len(required_skills)) if required_skills else 0.0
     missing_skills = list(required_skills - resume_skills)
     
-    skill_score = min(1.0, len(exact_matches) / len(required_skills)) if required_skills else 0.0
-    
-    # Experience score
+    # Experience score - FIXED to match rank_resumes logic
     experience_score = 0.0
     experience_list = resume_data.get("experience", [])
+    required_years = 0
+    
+    # Extract required experience from JD
+    year_mentions = re.findall(r'(\d+)\+?\s*(?:years?|yrs?)\s+(?:of\s+)?(?:experience|exp)', jd_text.lower())
+    if year_mentions:
+        required_years = max([int(y) for y in year_mentions])
+    
     if experience_list:
-        total_years = sum([exp.get("years", 0) for exp in experience_list if isinstance(exp, dict)])
-        experience_score = min(1.0, total_years / 5.0)
+        total_years = 0
+        role_count = 0
+        for exp in experience_list:
+            if isinstance(exp, dict):
+                total_years += exp.get("years", 0)
+                if exp.get("role"):
+                    role_count += 1
+        
+        # Score based on years (0.7 weight) and number of roles (0.3 weight)
+        if required_years > 0:
+            year_score = min(1.0, total_years / required_years)
+        else:
+            year_score = min(1.0, total_years / 5.0)  # Assume 5 years is excellent
+        
+        role_score = min(1.0, role_count / 3.0)  # 3+ roles is excellent
+        experience_score = (year_score * 0.7) + (role_score * 0.3)
     
     # Education score
     education_score = 0.0
