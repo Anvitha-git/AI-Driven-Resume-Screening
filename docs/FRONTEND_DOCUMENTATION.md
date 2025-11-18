@@ -40,9 +40,9 @@ graph TB
             
             subgraph "Routing Layer"
                 ROUTER[React Router<br/>BrowserRouter]
-                LOGIN_ROUTE[/login Route]
-                HR_ROUTE[/hr Route]
-                CAND_ROUTE[/candidate Route]
+              LOGIN_ROUTE[Login Route]
+              HR_ROUTE[HR Route]
+              CAND_ROUTE[Candidate Route]
             end
             
             subgraph "Page Components"
