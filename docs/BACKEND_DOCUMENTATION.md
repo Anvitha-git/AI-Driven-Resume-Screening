@@ -31,38 +31,38 @@ The backend is built with **FastAPI** (Python) and serves as the core intelligen
 ```mermaid
 graph TB
     subgraph "External Clients"
-        FE[React Frontend<br/>Port 3000]
-        CHAT[Rasa Chatbot<br/>Port 5005]
+      FE[React Frontend\nPort 3000]
+      CHAT[Rasa Chatbot\nPort 5005]
     end
 
     subgraph "FastAPI Backend - Port 8000"
-        API[FastAPI Application<br/>main.py]
+      API[FastAPI Application\nmain.py]
         
         subgraph "Core Services"
-            AUTH[Authentication Service<br/>JWT Validation]
-            JOB[Job Management<br/>CRUD Operations]
-            RESUME[Resume Processing<br/>Upload & Storage]
-            DECISION[Decision Service<br/>Save & Submit]
-            NOTIF[Notification Service<br/>In-App Alerts]
+          AUTH[Authentication Service\nJWT Validation]
+          JOB[Job Management\nCRUD Operations]
+          RESUME[Resume Processing\nUpload & Storage]
+          DECISION[Decision Service\nSave & Submit]
+          NOTIF[Notification Service\nIn-App Alerts]
         end
         
         subgraph "AI/ML Pipeline"
-            EXTRACT[Text Extraction<br/>ai_processor.py]
-            SKILL[Skill Extraction<br/>spaCy + rapidfuzz]
-            RANK[Resume Ranking<br/>Multi-factor Scoring]
-            EXPLAIN[Explainability<br/>LIME + Breakdown]
-            BIAS[Bias Detection<br/>Fairlearn]
+          EXTRACT[Text Extraction\nai_processor.py]
+          SKILL[Skill Extraction\nspaCy + rapidfuzz]
+          RANK[Resume Ranking\nMulti-factor Scoring]
+          EXPLAIN[Explainability\nLIME + Breakdown]
+          BIAS[Bias Detection\nFairlearn]
         end
         
         subgraph "External Services"
-            EMAIL[Email Service<br/>email_service.py<br/>Gmail SMTP]
+          EMAIL[Email Service\nemail_service.py\nGmail SMTP]
         end
     end
 
     subgraph "AI/ML Models"
-        SBERT[Sentence-BERT<br/>all-mpnet-base-v2<br/>Semantic Similarity]
-        SPACY[spaCy NLP<br/>en_core_web_sm<br/>NER & Tokenization]
-        OCR[Tesseract OCR<br/>Image to Text]
+      SBERT[Sentence-BERT\nall-mpnet-base-v2\nSemantic Similarity]
+      SPACY[spaCy NLP\nen_core_web_sm\nNER & Tokenization]
+      OCR[Tesseract OCR\nImage to Text]
     end
 
     subgraph "Database"

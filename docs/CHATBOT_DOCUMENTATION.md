@@ -37,65 +37,65 @@ The chatbot is an **interview preparation assistant** built with **Rasa 3.x** th
 ```mermaid
 graph TB
     subgraph "User Interface"
-        USER[Candidate User]
-        FE[React Frontend<br/>Chat Component]
+      USER[Candidate User]
+      FE[React Frontend\nChat Component]
     end
 
     subgraph "Rasa Server - Port 5005"
         subgraph "HTTP API Layer"
-            REST[REST API<br/>/webhooks/rest/webhook]
-            MODEL[Model Server<br/>Load trained model]
+          REST[REST API\n/webhooks/rest/webhook]
+          MODEL[Model Server\nLoad trained model]
         end
         
         subgraph "NLU Pipeline"
-            INPUT[User Message Input]
-            TOKEN[WhitespaceTokenizer<br/>Split into tokens]
-            REGEX[RegexFeaturizer<br/>Pattern matching]
-            LEX[LexicalSyntacticFeaturizer<br/>POS tags, features]
-            COUNT[CountVectorsFeaturizer<br/>Word frequency vectors]
-            DIET[DIETClassifier<br/>Intent + Entity extraction]
-            ENT[EntitySynonymMapper<br/>Normalize entities]
-            RESP[ResponseSelector<br/>Select FAQ responses]
+          INPUT[User Message Input]
+          TOKEN[WhitespaceTokenizer\nSplit into tokens]
+          REGEX[RegexFeaturizer\nPattern matching]
+          LEX[LexicalSyntacticFeaturizer\nPOS tags, features]
+          COUNT[CountVectorsFeaturizer\nWord frequency vectors]
+          DIET[DIETClassifier\nIntent + Entity extraction]
+          ENT[EntitySynonymMapper\nNormalize entities]
+          RESP[ResponseSelector\nSelect FAQ responses]
         end
         
         subgraph "Dialogue Management"
-            TRACKER[Conversation Tracker<br/>Store dialogue state]
-            POLICY[Policies]
-            MEMO[MemoizationPolicy<br/>Exact match stories]
-            RULE[RulePolicy<br/>Fixed rules]
-            TED[TEDPolicy<br/>ML-based prediction]
-            ACTION_SEL[Action Selection<br/>Choose next action]
+          TRACKER[Conversation Tracker\nStore dialogue state]
+          POLICY[Policies]
+          MEMO[MemoizationPolicy\nExact match stories]
+          RULE[RulePolicy\nFixed rules]
+          TED[TEDPolicy\nML-based prediction]
+          ACTION_SEL[Action Selection\nChoose next action]
         end
         
         subgraph "Action Execution"
-            ACT_EXEC[Action Executor]
-            DEFAULT[Default Actions<br/>utter_* templates]
-            CUSTOM[Custom Actions<br/>Python code]
+          ACT_EXEC[Action Executor]
+          DEFAULT[Default Actions\nutter_* templates]
+          CUSTOM[Custom Actions\nPython code]
         end
     end
 
     subgraph "Actions Server - Port 5055"
-        ACTION_SERVER[Rasa SDK Server]
+      ACTION_SERVER[Rasa SDK Server]
         
         subgraph "Custom Python Actions"
-            ACT_IP[ActionInterviewPrep<br/>Practice questions]
-            ACT_TIP[ActionInterviewTips<br/>STAR method]
-            ACT_TECH[ActionTechnicalInterview<br/>Tech prep]
+          ACT_IP[ActionInterviewPrep\nPractice questions]
+          ACT_TIP[ActionInterviewTips\nSTAR method]
+          ACT_TECH[ActionTechnicalInterview\nTech prep]
         end
     end
 
     subgraph "Training Data Files"
-        NLU_DATA[nlu.yml<br/>Intents + Examples]
-        STORIES[stories.yml<br/>Conversation flows]
-        RULES[rules.yml<br/>Fixed patterns]
-        DOMAIN[domain.yml<br/>Intents, Actions, Responses]
-        CONFIG[config.yml<br/>Pipeline configuration]
+      NLU_DATA[nlu.yml\nIntents + Examples]
+      STORIES[stories.yml\nConversation flows]
+      RULES[rules.yml\nFixed patterns]
+      DOMAIN[domain.yml\nIntents, Actions, Responses]
+      CONFIG[config.yml\nPipeline configuration]
     end
 
     subgraph "ML Models"
-        SPACY[spaCy Model<br/>en_core_web_sm<br/>Tokenization]
-        SKLEARN[scikit-learn<br/>Feature extraction]
-        TF[TensorFlow<br/>DIET/TED neural nets]
+      SPACY[spaCy Model\nen_core_web_sm\nTokenization]
+      SKLEARN[scikit-learn\nFeature extraction]
+      TF[TensorFlow\nDIET/TED neural nets]
     end
 
     %% User Flow
@@ -177,7 +177,7 @@ sequenceDiagram
 
     %% Initial Greeting
     User->>FE: Opens chat interface
-    FE->>Rasa: POST /webhooks/rest/webhook<br/>{sender: "user123", message: "hi"}
+    FE->>Rasa: POST /webhooks/rest/webhook\n{sender: "user123", message: "hi"}
     Rasa->>NLU: Process "hi"
     NLU->>NLU: Tokenize → Featurize
     NLU->>NLU: DIET Classifier
@@ -190,7 +190,7 @@ sequenceDiagram
 
     %% Interview Prep Request
     User->>FE: "I need help with interviews"
-    FE->>Rasa: POST /webhooks/rest/webhook<br/>{message: "I need help with interviews"}
+    FE->>Rasa: POST /webhooks/rest/webhook\n{message: "I need help with interviews"}
     Rasa->>NLU: Process message
     NLU->>NLU: Extract features
     NLU->>NLU: DIET classification
@@ -232,7 +232,7 @@ sequenceDiagram
 
     %% End Conversation
     User->>FE: "Thanks, bye!"
-    FE->>Rasa: POST /webhooks/rest/webhook<br/>{message: "Thanks, bye!"}
+    FE->>Rasa: POST /webhooks/rest/webhook\n{message: "Thanks, bye!"}
     Rasa->>NLU: Process message
     NLU-->>Rasa: Intent: goodbye
     Rasa->>DM: Get next action
@@ -240,7 +240,7 @@ sequenceDiagram
     DM-->>Rasa: Action: utter_goodbye
     Rasa-->>FE: [{text: "Good luck with your interview!"}]
     FE-->>User: Display goodbye
-    Note over FE,Rasa: Conversation ends,<br/>tracker persists
+    Note over FE,Rasa: Conversation ends,\ntracker persists
 ```
 
 ---

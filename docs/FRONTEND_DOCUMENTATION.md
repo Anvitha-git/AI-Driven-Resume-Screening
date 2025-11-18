@@ -36,19 +36,19 @@ The frontend is a **React 18.2.0** single-page application (SPA) that provides a
 graph TB
     subgraph "Browser Environment"
         subgraph "React Application - Port 3000"
-            APP[App.js<br/>Root Component]
+          APP[App.js\nRoot Component]
             
             subgraph "Routing Layer"
-                ROUTER[React Router<br/>BrowserRouter]
+              ROUTER[React Router\nBrowserRouter]
               LOGIN_ROUTE[Login Route]
               HR_ROUTE[HR Route]
               CAND_ROUTE[Candidate Route]
             end
             
             subgraph "Page Components"
-                LOGIN[Login.js<br/>Authentication UI]
-                HR_DASH[HrDashboard.js<br/>Job Management]
-                CAND_DASH[CandidateDashboard.js<br/>Application Tracking]
+              LOGIN[Login.js\nAuthentication UI]
+              HR_DASH[HrDashboard.js\nJob Management]
+              CAND_DASH[CandidateDashboard.js\nApplication Tracking]
             end
             
             subgraph "UI Components"
@@ -61,26 +61,26 @@ graph TB
             end
             
             subgraph "State Management"
-                LOCAL[Component State<br/>useState Hooks]
-                SESSION[LocalStorage<br/>Persistence]
-                EFFECT[Side Effects<br/>useEffect Hooks]
+              LOCAL[Component State\nuseState Hooks]
+              SESSION[LocalStorage\nPersistence]
+              EFFECT[Side Effects\nuseEffect Hooks]
             end
             
             subgraph "API Communication"
-                AXIOS[Axios Client<br/>HTTP Requests]
+              AXIOS[Axios Client\nHTTP Requests]
                 API_CALLS[API Service Layer]
             end
         end
         
         subgraph "Browser APIs"
-            STORAGE[LocalStorage API]
-            HISTORY[History API]
+          STORAGE[LocalStorage API]
+          HISTORY[History API]
         end
     end
 
     subgraph "External Services"
-        BACKEND[FastAPI Backend<br/>localhost:8000]
-        CHATBOT[Rasa Chatbot<br/>localhost:5005]
+      BACKEND[FastAPI Backend\nlocalhost:8000]
+      CHATBOT[Rasa Chatbot\nlocalhost:5005]
     end
 
     %% Flow Connections
