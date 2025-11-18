@@ -59,72 +59,98 @@ def send_decision_email(
     try:
         # Create email content based on decision
         if decision == 'selected':
-            subject = f"Congratulations! You've been selected for {job_title}"
+            subject = f"Congratulations! You've been selected for - {job_title}"
             body = f"""
 Dear {candidate_name},
 
-We are pleased to inform you that you have been selected for the position of {job_title} at {company_name}!
+Congratulations! 🎊
 
-Your resume and qualifications stood out among the applicants, and we believe you would be a great fit for our team.
+We're thrilled to inform you that your application for the {job_title} position at {company_name} has been shortlisted!
 
-Next Steps:
-- Our HR team will contact you within 2-3 business days to schedule an interview
-- Please keep an eye on your email and phone for further communication
-- Prepare any questions you may have about the role and company
+Your skills, experience, and qualifications truly impressed our hiring team. After carefully reviewing all applications, we believe you have the potential to make a significant impact in this role.
 
-We look forward to speaking with you soon!
+📅 What Happens Next?
 
-Best regards,
+• Interview Invitation: Our recruitment team will reach out within 2-3 business days to schedule your interview
+• Be Prepared: We recommend reviewing the job description and preparing examples of your relevant experience
+• Stay Connected: Please ensure your phone and email are accessible for our upcoming communication.
+
+We're genuinely excited about the possibility of you joining our team and look forward to getting to know you better.
+
+Warm regards,
+The {company_name} Hiring Team
 {EMAIL_FROM_NAME}
-{company_name}
 
 ---
-This is an automated notification from our Resume Screening System.
+📧 This is an automated notification from our AI-Powered Resume Screening System
+If you have any questions, please don't hesitate to reach out to our HR department.
             """
             
         elif decision == 'rejected':
-            subject = f"Update on your application for {job_title}"
+            subject = f"Thank You for Your Application - {job_title}"
             body = f"""
 Dear {candidate_name},
 
-Thank you for your interest in the {job_title} position at {company_name} and for taking the time to submit your application.
+Thank you for taking the time to apply for the {job_title} position at {company_name}. We truly appreciate your interest in joining our team.
 
-After careful consideration, we regret to inform you that we have decided to move forward with other candidates whose qualifications more closely match our current needs.
+After thoughtful consideration of all applications, we've decided to move forward with candidates whose experience more closely aligns with our specific requirements for this particular role.
 
-We appreciate your interest in joining our team and encourage you to apply for future positions that align with your skills and experience.
+However, we want you to know:
 
-We wish you the best in your job search and future career endeavors.
+✨ Your Application Matters
+Your skills and experience are valuable, and this decision doesn't diminish your professional worth. The hiring process often comes down to finding the most specific match for a role's unique requirements.
 
-Best regards,
+🚀 Keep Moving Forward
+• We encourage you to explore other opportunities that may be an even better fit for your talents
+• Keep an eye on our careers page for future openings that align with your expertise
+• Continue building your skills - the right opportunity is out there!
+
+🔔 Stay in Touch
+We maintain all applications on file and may reach out if a suitable position becomes available in the future.
+
+We sincerely wish you all the best in your career journey and future endeavors. Keep pursuing your goals with confidence!
+
+Best wishes,
+The {company_name} Hiring Team
 {EMAIL_FROM_NAME}
-{company_name}
 
 ---
-This is an automated notification from our Resume Screening System.
+📧 This is an automated notification from our AI-Powered Resume Screening System
             """
             
         else:  # pending
-            subject = f"Your application for {job_title} is under review"
+            subject = f"Application Received - {job_title} at {company_name}"
             body = f"""
 Dear {candidate_name},
 
-Thank you for applying for the {job_title} position at {company_name}.
+Thank you for applying for the {job_title} position at {company_name}! We've successfully received your application. ✅
 
-Your application is currently under review by our hiring team. We are carefully evaluating all candidates to ensure the best fit for this role.
+🔍 Current Status: Under Review
 
-What to expect:
-- You will receive an update on your application status within 5-7 business days
-- If selected for the next round, we will contact you to schedule an interview
-- Please ensure your contact information is up to date
+Your resume is currently being carefully evaluated by our hiring team. We use an AI-powered screening system to ensure fair and thorough assessment of every candidate.
 
-Thank you for your patience and interest in joining our team.
+⏰ Timeline & Next Steps:
+
+• Review Period: 5-7 business days
+• Shortlisted Candidates: Will receive interview invitations via email
+• Decision Updates: You'll be notified regardless of the outcome
+• Contact Info: Please ensure your phone and email are up to date
+
+💼 In the Meantime:
+
+• Keep your application status dashboard updated
+• Check your spam folder regularly to avoid missing important updates
+• Feel free to explore other open positions on our careers page
+
+We understand how important this opportunity is to you, and we're committed to providing updates in a timely manner. Thank you for your patience!
 
 Best regards,
+The {company_name} Hiring Team
 {EMAIL_FROM_NAME}
-{company_name}
 
 ---
-This is an automated notification from our Resume Screening System.
+📧 This is an automated notification from our AI-Powered Resume Screening System
+Questions? Contact our HR department for assistance.
             """
         
         # Create message

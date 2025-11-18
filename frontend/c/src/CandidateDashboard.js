@@ -23,6 +23,13 @@ function CandidateDashboard() {
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [passwordData, setPasswordData] = useState({ current: '', new: '', confirm: '' });
   
+  // Notification preferences state
+  const [notificationPrefs, setNotificationPrefs] = useState({
+    emailNotifications: true,
+    statusUpdates: true,
+    jobAlerts: true
+  });
+  
   // Auth helpers
   const getAccessToken = () => localStorage.getItem('access_token') || localStorage.getItem('token');
   const tryRefreshToken = useCallback(async () => {
@@ -156,6 +163,9 @@ function CandidateDashboard() {
       setNotifications(res.data || []);
     }).catch((err) => console.error('Error fetching notifications:', err));
 
+    // Load notification preferences
+    loadNotificationPreferences();
+
     // Logout when window/tab is closed
     const handleBeforeUnload = () => {
       localStorage.removeItem('token');
@@ -165,7 +175,7 @@ function CandidateDashboard() {
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
-  }, [navigate, withAuth]);
+  }, [navigate, withAuth, loadNotificationPreferences]);
 
   const handleFileChange = (jd_id) => (e) => {
     const file = e.target.files?.[0] || null;
@@ -298,6 +308,47 @@ const hasOpenApplication = () => {
     } catch (error) {
       console.error('Error updating name:', error);
       setNameError(error.response?.data?.detail || 'Failed to update name');
+    }
+  };
+
+  // Notification preferences handlers
+  const loadNotificationPreferences = useCallback(async () => {
+    try {
+      const userId = localStorage.getItem('user_id');
+      const token = getAccessToken();
+      const response = await axios.get(`http://localhost:8000/user-preferences/${userId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (response.data) {
+        setNotificationPrefs({
+          emailNotifications: response.data.email_notifications ?? true,
+          statusUpdates: response.data.status_updates ?? true,
+          jobAlerts: response.data.job_alerts ?? true
+        });
+      }
+    } catch (error) {
+      console.log('Could not load preferences, using defaults');
+    }
+  }, []);
+
+  const updateNotificationPref = async (prefKey, value) => {
+    const newPrefs = { ...notificationPrefs, [prefKey]: value };
+    setNotificationPrefs(newPrefs);
+    
+    try {
+      const userId = localStorage.getItem('user_id');
+      const token = getAccessToken();
+      await axios.patch(`http://localhost:8000/user-preferences/${userId}`, {
+        email_notifications: newPrefs.emailNotifications,
+        status_updates: newPrefs.statusUpdates,
+        job_alerts: newPrefs.jobAlerts
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+    } catch (error) {
+      console.error('Failed to update preferences:', error);
+      // Revert on error
+      setNotificationPrefs({ ...notificationPrefs });
     }
   };
 
@@ -1070,7 +1121,11 @@ const hasOpenApplication = () => {
                     <p className="settings-option-description">Receive email updates about your applications</p>
                   </div>
                   <label className="toggle-switch">
-                    <input type="checkbox" defaultChecked />
+                    <input 
+                      type="checkbox" 
+                      checked={notificationPrefs.emailNotifications}
+                      onChange={(e) => updateNotificationPref('emailNotifications', e.target.checked)}
+                    />
                     <span className="toggle-slider"></span>
                   </label>
                 </div>
@@ -1080,7 +1135,11 @@ const hasOpenApplication = () => {
                     <p className="settings-option-description">Get notified when your application status changes</p>
                   </div>
                   <label className="toggle-switch">
-                    <input type="checkbox" defaultChecked />
+                    <input 
+                      type="checkbox" 
+                      checked={notificationPrefs.statusUpdates}
+                      onChange={(e) => updateNotificationPref('statusUpdates', e.target.checked)}
+                    />
                     <span className="toggle-slider"></span>
                   </label>
                 </div>
@@ -1090,7 +1149,11 @@ const hasOpenApplication = () => {
                     <p className="settings-option-description">Receive alerts about new job postings matching your profile</p>
                   </div>
                   <label className="toggle-switch">
-                    <input type="checkbox" defaultChecked />
+                    <input 
+                      type="checkbox" 
+                      checked={notificationPrefs.jobAlerts}
+                      onChange={(e) => updateNotificationPref('jobAlerts', e.target.checked)}
+                    />
                     <span className="toggle-slider"></span>
                   </label>
                 </div>

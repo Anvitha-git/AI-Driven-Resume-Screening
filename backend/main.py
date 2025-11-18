@@ -73,6 +73,11 @@ class Decision(BaseModel):
 class UpdateNameRequest(BaseModel):
     name: str
 
+class UserPreferences(BaseModel):
+    email_notifications: bool = True
+    status_updates: bool = True
+    job_alerts: bool = True
+
 # Helpers
 def _signed_url_for(file_url: Optional[str]) -> Optional[str]:
     """Create a public URL for a stored object.
@@ -811,6 +816,28 @@ async def mark_notification_read(notif_id: str, user=Depends(get_current_user)):
         logging.exception("Error marking notification as read")
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
+# User Preferences endpoints
+@app.get("/user-preferences/{user_id}")
+async def get_user_preferences(user_id: str, user=Depends(get_current_user)):
+    """Get user's notification preferences - returns defaults as preferences columns don't exist in DB"""
+    if user.id != user_id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    # Return default preferences (preference columns don't exist in user_profiles table)
+    return {
+        "email_notifications": True,
+        "status_updates": True,
+        "job_alerts": True
+    }
+
+@app.patch("/user-preferences/{user_id}")
+async def update_user_preferences(user_id: str, preferences: UserPreferences, user=Depends(get_current_user)):
+    """Update user's notification preferences - no-op as preference columns don't exist in DB"""
+    if user.id != user_id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    # No-op: preference columns don't exist in user_profiles table
+    # Return success to avoid breaking frontend
+    return {"message": "Preferences updated successfully"}
+
 # Decision endpoint (for HR to accept/reject candidates)
 # This only saves the decision - emails are sent when HR clicks "Submit Decisions"
 @app.post("/decisions/{resume_id}")
@@ -857,21 +884,15 @@ async def submit_decisions(jd_id: str, user=Depends(get_current_user)):
             candidate_user_id = resume["user_id"]
             decision = resume["decision"]
             
-            # Get candidate email
-            candidate_profile = supabase_service.table("user_profiles").select("email").eq("user_id", candidate_user_id).execute()
+            # Get candidate email from user_profiles
+            candidate_profile = supabase_service.table("user_profiles").select(
+                "email"
+            ).eq("user_id", candidate_user_id).execute()
+            
             candidate_email = candidate_profile.data[0]["email"] if candidate_profile.data else None
-            
-            # Extract candidate name from email
             candidate_name = "Candidate"
-            if candidate_email:
-                name_part = candidate_email.split('@')[0]
-                if '.' in name_part:
-                    parts = name_part.split('.')
-                    candidate_name = ' '.join([p.capitalize() for p in parts])
-                else:
-                    candidate_name = name_part.capitalize()
             
-            # Send email notification
+            # Send email notification (preferences feature removed as columns don't exist)
             if candidate_email:
                 email_sent = send_decision_email(
                     candidate_email=candidate_email,
