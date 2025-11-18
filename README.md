@@ -447,7 +447,7 @@ This project was developed as a **Major Project** at **CMR Institute of Technolo
 | Name | USN | Role | Responsibilities |
 |------|-----|------|------------------|
 | **Anvitha S** | 1CR22AI019 | Frontend & Chatbot Developer | React Integration, Rasa Chatbot Implementation |
-| **Lingeshwari S** | 1CR22AI056 | Frontend & Chatbot Developer | React UI, Rasa Chatbot UI |
+| **Lingeshwari S** | 1CR22AI062 | Frontend & Chatbot Developer | React UI, Rasa Chatbot UI |
 | **Pranav V** | 1CR22AI088 | Backend & AI/ML Developer | FastAPI, AI Ranking Algorithm, Resume Processing |
 | **Shariq Sheikh** | 1CR22AI102 | Backend & AI/ML Developer | Supabase Integration, Email Service, Bias Detection |
 

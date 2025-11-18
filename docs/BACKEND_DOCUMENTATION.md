@@ -26,6 +26,170 @@ The backend is built with **FastAPI** (Python) and serves as the core intelligen
 
 ---
 
+## Architecture Diagram
+
+```mermaid
+graph TB
+    subgraph "External Clients"
+        FE[React Frontend<br/>Port 3000]
+        CHAT[Rasa Chatbot<br/>Port 5005]
+    end
+
+    subgraph "FastAPI Backend - Port 8000"
+        API[FastAPI Application<br/>main.py]
+        
+        subgraph "Core Services"
+            AUTH[Authentication Service<br/>JWT Validation]
+            JOB[Job Management<br/>CRUD Operations]
+            RESUME[Resume Processing<br/>Upload & Storage]
+            DECISION[Decision Service<br/>Save & Submit]
+            NOTIF[Notification Service<br/>In-App Alerts]
+        end
+        
+        subgraph "AI/ML Pipeline"
+            EXTRACT[Text Extraction<br/>ai_processor.py]
+            SKILL[Skill Extraction<br/>spaCy + rapidfuzz]
+            RANK[Resume Ranking<br/>Multi-factor Scoring]
+            EXPLAIN[Explainability<br/>LIME + Breakdown]
+            BIAS[Bias Detection<br/>Fairlearn]
+        end
+        
+        subgraph "External Services"
+            EMAIL[Email Service<br/>email_service.py<br/>Gmail SMTP]
+        end
+    end
+
+    subgraph "AI/ML Models"
+        SBERT[Sentence-BERT<br/>all-mpnet-base-v2<br/>Semantic Similarity]
+        SPACY[spaCy NLP<br/>en_core_web_sm<br/>NER & Tokenization]
+        OCR[Tesseract OCR<br/>Image to Text]
+    end
+
+    subgraph "Database"
+        DB[(Supabase PostgreSQL)]
+        T1[user_profiles]
+        T2[job_descriptions]
+        T3[resumes]
+        T4[notifications]
+        DB --> T1
+        DB --> T2
+        DB --> T3
+        DB --> T4
+    end
+
+    %% Client to API
+    FE -->|HTTP REST| API
+    CHAT -->|HTTP REST| API
+
+    %% API to Services
+    API --> AUTH
+    API --> JOB
+    API --> RESUME
+    API --> DECISION
+    API --> NOTIF
+
+    %% Resume Processing Flow
+    RESUME --> EXTRACT
+    EXTRACT -->|PDF| SBERT
+    EXTRACT -->|DOCX| SBERT
+    EXTRACT -->|Image| OCR
+    OCR --> SBERT
+    
+    EXTRACT --> SKILL
+    SKILL --> SPACY
+    
+    RESUME --> RANK
+    RANK --> SBERT
+    RANK --> SKILL
+    RANK --> BIAS
+    
+    RANK --> EXPLAIN
+
+    %% Decision Flow
+    DECISION --> EMAIL
+    DECISION --> NOTIF
+
+    %% Database Connections
+    AUTH -.->|Query| DB
+    JOB -.->|CRUD| DB
+    RESUME -.->|Store| DB
+    DECISION -.->|Update| DB
+    NOTIF -.->|Insert| DB
+
+    %% Styling
+    style API fill:#009688,stroke:#333,stroke-width:3px,color:#fff
+    style SBERT fill:#ff9800,stroke:#333,stroke-width:2px,color:#000
+    style RANK fill:#2196f3,stroke:#333,stroke-width:2px,color:#fff
+    style DB fill:#3ecf8e,stroke:#333,stroke-width:2px,color:#000
+    style EMAIL fill:#f44336,stroke:#333,stroke-width:2px,color:#fff
+```
+
+### Component Interaction Flow
+
+```mermaid
+sequenceDiagram
+    participant HR as HR User
+    participant FE as Frontend
+    participant API as FastAPI
+    participant AI as AI Processor
+    participant DB as Database
+    participant Email as Email Service
+
+    %% Resume Upload Flow
+    HR->>FE: Upload Resume Files
+    FE->>API: POST /hr/jobs/{id}/upload-resumes
+    API->>AI: extract_text(file)
+    
+    alt PDF File
+        AI->>AI: pdfplumber extraction
+    else DOCX File
+        AI->>AI: python-docx extraction
+    else Image File
+        AI->>AI: pytesseract OCR
+    end
+    
+    AI->>AI: extract_skills_from_text()
+    Note over AI: spaCy NER + rapidfuzz
+    
+    AI->>AI: extract_structured_data()
+    Note over AI: Experience + Education
+    
+    AI->>AI: rank_resumes()
+    Note over AI: Sentence-BERT embeddings
+    Note over AI: Multi-factor scoring
+    Note over AI: Fairlearn bias check
+    
+    AI-->>API: Structured data + Ranking scores
+    API->>DB: INSERT INTO resumes
+    DB-->>API: Success
+    API-->>FE: Ranked candidates list
+    FE-->>HR: Display ranked resumes
+
+    %% Decision Flow
+    HR->>FE: Select decision (Selected/Rejected)
+    FE->>API: POST /decisions/{resume_id}
+    API->>DB: UPDATE resumes SET decision
+    DB-->>API: Success
+    API-->>FE: Decision saved
+
+    HR->>FE: Click "Submit Decisions"
+    FE->>API: POST /hr/jobs/{id}/submit-decisions
+    API->>DB: SELECT resumes WHERE decision != 'pending'
+    DB-->>API: Candidates list
+    
+    loop For each candidate
+        API->>Email: send_decision_email()
+        Email->>Email: Gmail SMTP (TLS)
+        Email-->>API: Email sent
+        API->>DB: INSERT INTO notifications
+    end
+    
+    API-->>FE: Emails sent successfully
+    FE-->>HR: Confirmation message
+```
+
+---
+
 ## Technology Stack
 
 ### Core Framework

@@ -32,6 +32,219 @@ The chatbot is an **interview preparation assistant** built with **Rasa 3.x** th
 
 ---
 
+## Architecture Diagram
+
+```mermaid
+graph TB
+    subgraph "User Interface"
+        USER[Candidate User]
+        FE[React Frontend<br/>Chat Component]
+    end
+
+    subgraph "Rasa Server - Port 5005"
+        subgraph "HTTP API Layer"
+            REST[REST API<br/>/webhooks/rest/webhook]
+            MODEL[Model Server<br/>Load trained model]
+        end
+        
+        subgraph "NLU Pipeline"
+            INPUT[User Message Input]
+            TOKEN[WhitespaceTokenizer<br/>Split into tokens]
+            REGEX[RegexFeaturizer<br/>Pattern matching]
+            LEX[LexicalSyntacticFeaturizer<br/>POS tags, features]
+            COUNT[CountVectorsFeaturizer<br/>Word frequency vectors]
+            DIET[DIETClassifier<br/>Intent + Entity extraction]
+            ENT[EntitySynonymMapper<br/>Normalize entities]
+            RESP[ResponseSelector<br/>Select FAQ responses]
+        end
+        
+        subgraph "Dialogue Management"
+            TRACKER[Conversation Tracker<br/>Store dialogue state]
+            POLICY[Policies]
+            MEMO[MemoizationPolicy<br/>Exact match stories]
+            RULE[RulePolicy<br/>Fixed rules]
+            TED[TEDPolicy<br/>ML-based prediction]
+            ACTION_SEL[Action Selection<br/>Choose next action]
+        end
+        
+        subgraph "Action Execution"
+            ACT_EXEC[Action Executor]
+            DEFAULT[Default Actions<br/>utter_* templates]
+            CUSTOM[Custom Actions<br/>Python code]
+        end
+    end
+
+    subgraph "Actions Server - Port 5055"
+        ACTION_SERVER[Rasa SDK Server]
+        
+        subgraph "Custom Python Actions"
+            ACT_IP[ActionInterviewPrep<br/>Practice questions]
+            ACT_TIP[ActionInterviewTips<br/>STAR method]
+            ACT_TECH[ActionTechnicalInterview<br/>Tech prep]
+        end
+    end
+
+    subgraph "Training Data Files"
+        NLU_DATA[nlu.yml<br/>Intents + Examples]
+        STORIES[stories.yml<br/>Conversation flows]
+        RULES[rules.yml<br/>Fixed patterns]
+        DOMAIN[domain.yml<br/>Intents, Actions, Responses]
+        CONFIG[config.yml<br/>Pipeline configuration]
+    end
+
+    subgraph "ML Models"
+        SPACY[spaCy Model<br/>en_core_web_sm<br/>Tokenization]
+        SKLEARN[scikit-learn<br/>Feature extraction]
+        TF[TensorFlow<br/>DIET/TED neural nets]
+    end
+
+    %% User Flow
+    USER -->|Type message| FE
+    FE -->|POST /webhooks/rest/webhook| REST
+    
+    %% NLU Processing
+    REST --> MODEL
+    MODEL --> INPUT
+    INPUT --> TOKEN
+    TOKEN --> REGEX
+    REGEX --> LEX
+    LEX --> COUNT
+    COUNT --> DIET
+    DIET --> ENT
+    ENT --> RESP
+    
+    %% NLU to Dialogue
+    RESP --> TRACKER
+    
+    %% Dialogue Management
+    TRACKER --> POLICY
+    POLICY --> MEMO
+    POLICY --> RULE
+    POLICY --> TED
+    MEMO --> ACTION_SEL
+    RULE --> ACTION_SEL
+    TED --> ACTION_SEL
+    
+    %% Action Execution
+    ACTION_SEL --> ACT_EXEC
+    ACT_EXEC --> DEFAULT
+    ACT_EXEC --> CUSTOM
+    
+    %% Custom Actions
+    CUSTOM -->|HTTP Request| ACTION_SERVER
+    ACTION_SERVER --> ACT_IP
+    ACTION_SERVER --> ACT_TIP
+    ACTION_SERVER --> ACT_TECH
+    ACTION_SERVER -->|Response| ACT_EXEC
+    
+    %% Response Flow
+    ACT_EXEC --> REST
+    REST -->|JSON response| FE
+    FE -->|Display message| USER
+    
+    %% Training Dependencies
+    NLU_DATA -.->|Train| DIET
+    STORIES -.->|Train| TED
+    RULES -.->|Train| RULE
+    DOMAIN -.->|Define| MODEL
+    CONFIG -.->|Configure| MODEL
+    
+    %% Model Dependencies
+    TOKEN -.->|Uses| SPACY
+    COUNT -.->|Uses| SKLEARN
+    DIET -.->|Uses| TF
+    TED -.->|Uses| TF
+
+    %% Styling
+    style REST fill:#5e35b1,stroke:#333,stroke-width:3px,color:#fff
+    style DIET fill:#ff6f00,stroke:#333,stroke-width:2px,color:#fff
+    style TED fill:#ff6f00,stroke:#333,stroke-width:2px,color:#fff
+    style ACTION_SERVER fill:#00897b,stroke:#333,stroke-width:2px,color:#fff
+    style DOMAIN fill:#1976d2,stroke:#333,stroke-width:2px,color:#fff
+```
+
+### Conversation Flow Sequence
+
+```mermaid
+sequenceDiagram
+    participant User as Candidate
+    participant FE as React Frontend
+    participant Rasa as Rasa Server
+    participant NLU as NLU Pipeline
+    participant DM as Dialogue Manager
+    participant Action as Actions Server
+    participant DB as Backend API
+
+    %% Initial Greeting
+    User->>FE: Opens chat interface
+    FE->>Rasa: POST /webhooks/rest/webhook<br/>{sender: "user123", message: "hi"}
+    Rasa->>NLU: Process "hi"
+    NLU->>NLU: Tokenize → Featurize
+    NLU->>NLU: DIET Classifier
+    NLU-->>Rasa: Intent: greet (confidence: 0.98)
+    Rasa->>DM: Get next action
+    DM->>DM: RulePolicy matches
+    DM-->>Rasa: Action: utter_greet
+    Rasa-->>FE: [{text: "Hello! I'm your interview prep assistant..."}]
+    FE-->>User: Display bot message
+
+    %% Interview Prep Request
+    User->>FE: "I need help with interviews"
+    FE->>Rasa: POST /webhooks/rest/webhook<br/>{message: "I need help with interviews"}
+    Rasa->>NLU: Process message
+    NLU->>NLU: Extract features
+    NLU->>NLU: DIET classification
+    NLU-->>Rasa: Intent: interview_prep
+    Rasa->>DM: Get next action
+    DM->>DM: TEDPolicy prediction
+    DM-->>Rasa: Action: action_interview_prep
+    Rasa->>Action: Execute custom action
+    Action->>Action: Generate practice questions
+    Action-->>Rasa: [{text: "Great! Let's practice..."}]
+    Rasa-->>FE: Bot response
+    FE-->>User: Display questions
+
+    %% Behavioral Question Tips
+    User->>FE: "How do I answer behavioral questions?"
+    FE->>Rasa: POST /webhooks/rest/webhook
+    Rasa->>NLU: Process message
+    NLU-->>Rasa: Intent: interview_tips
+    Rasa->>DM: Get next action
+    DM-->>Rasa: Action: action_interview_tips
+    Rasa->>Action: Execute custom action
+    Action->>Action: Provide STAR method tips
+    Action-->>Rasa: [{text: "Use the STAR method..."}]
+    Rasa-->>FE: Bot response
+    FE-->>User: Display tips
+
+    %% Technical Interview
+    User->>FE: "What about technical interviews?"
+    FE->>Rasa: POST /webhooks/rest/webhook
+    Rasa->>NLU: Process message
+    NLU-->>Rasa: Intent: technical_interview
+    Rasa->>DM: Get next action
+    DM-->>Rasa: Action: action_technical_interview
+    Rasa->>Action: Execute custom action
+    Action->>Action: Technical interview advice
+    Action-->>Rasa: [{text: "For technical interviews..."}]
+    Rasa-->>FE: Bot response
+    FE-->>User: Display advice
+
+    %% End Conversation
+    User->>FE: "Thanks, bye!"
+    FE->>Rasa: POST /webhooks/rest/webhook<br/>{message: "Thanks, bye!"}
+    Rasa->>NLU: Process message
+    NLU-->>Rasa: Intent: goodbye
+    Rasa->>DM: Get next action
+    DM->>DM: RulePolicy matches
+    DM-->>Rasa: Action: utter_goodbye
+    Rasa-->>FE: [{text: "Good luck with your interview!"}]
+    FE-->>User: Display goodbye
+    Note over FE,Rasa: Conversation ends,<br/>tracker persists
+```
+
+---
+
 ## Technology Stack
 
 ### Core Framework
