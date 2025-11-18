@@ -30,6 +30,180 @@ The frontend is a **React 18.2.0** single-page application (SPA) that provides a
 
 ---
 
+## Architecture Diagram
+
+```mermaid
+graph TB
+    subgraph "Browser Environment"
+        subgraph "React Application - Port 3000"
+            APP[App.js<br/>Root Component]
+            
+            subgraph "Routing Layer"
+                ROUTER[React Router<br/>BrowserRouter]
+                LOGIN_ROUTE[/login Route]
+                HR_ROUTE[/hr Route]
+                CAND_ROUTE[/candidate Route]
+            end
+            
+            subgraph "Page Components"
+                LOGIN[Login.js<br/>Authentication UI]
+                HR_DASH[HrDashboard.js<br/>Job Management]
+                CAND_DASH[CandidateDashboard.js<br/>Application Tracking]
+            end
+            
+            subgraph "UI Components"
+                MUI[Material-UI Components]
+                DIALOG[Custom Dialogs]
+                FORMS[Forms & Inputs]
+                TABLES[Data Tables]
+                BUTTONS[Action Buttons]
+                SNACKBAR[Notifications]
+            end
+            
+            subgraph "State Management"
+                LOCAL[Component State<br/>useState Hooks]
+                SESSION[LocalStorage<br/>Persistence]
+                EFFECT[Side Effects<br/>useEffect Hooks]
+            end
+            
+            subgraph "API Communication"
+                AXIOS[Axios Client<br/>HTTP Requests]
+                API_CALLS[API Service Layer]
+            end
+        end
+        
+        subgraph "Browser APIs"
+            STORAGE[LocalStorage API]
+            HISTORY[History API]
+        end
+    end
+
+    subgraph "External Services"
+        BACKEND[FastAPI Backend<br/>localhost:8000]
+        CHATBOT[Rasa Chatbot<br/>localhost:5005]
+    end
+
+    %% Flow Connections
+    APP --> ROUTER
+    ROUTER --> LOGIN_ROUTE
+    ROUTER --> HR_ROUTE
+    ROUTER --> CAND_ROUTE
+    
+    LOGIN_ROUTE --> LOGIN
+    HR_ROUTE --> HR_DASH
+    CAND_ROUTE --> CAND_DASH
+    
+    LOGIN --> MUI
+    HR_DASH --> MUI
+    CAND_DASH --> MUI
+    
+    MUI --> DIALOG
+    MUI --> FORMS
+    MUI --> TABLES
+    MUI --> BUTTONS
+    MUI --> SNACKBAR
+    
+    LOGIN --> LOCAL
+    HR_DASH --> LOCAL
+    CAND_DASH --> LOCAL
+    
+    LOCAL --> SESSION
+    LOCAL --> EFFECT
+    
+    LOGIN --> AXIOS
+    HR_DASH --> AXIOS
+    CAND_DASH --> AXIOS
+    
+    AXIOS --> API_CALLS
+    
+    %% External Communications
+    API_CALLS -->|REST API| BACKEND
+    CAND_DASH -->|WebSocket/REST| CHATBOT
+    
+    SESSION -.->|Read/Write| STORAGE
+    ROUTER -.->|Navigate| HISTORY
+
+    %% Styling
+    style APP fill:#61dafb,stroke:#333,stroke-width:3px,color:#000
+    style ROUTER fill:#ca4245,stroke:#333,stroke-width:2px,color:#fff
+    style MUI fill:#007fff,stroke:#333,stroke-width:2px,color:#fff
+    style AXIOS fill:#5a29e4,stroke:#333,stroke-width:2px,color:#fff
+    style BACKEND fill:#009688,stroke:#333,stroke-width:2px,color:#fff
+    style CHATBOT fill:#5e35b1,stroke:#333,stroke-width:2px,color:#fff
+```
+
+### Component Data Flow
+
+```mermaid
+sequenceDiagram
+    participant User as User (HR)
+    participant UI as React UI
+    participant State as Component State
+    participant Storage as LocalStorage
+    participant Axios as Axios Client
+    participant API as Backend API
+    participant DB as Database
+
+    %% Login Flow
+    User->>UI: Enter credentials
+    UI->>State: Update form state
+    User->>UI: Click "Login"
+    UI->>Axios: POST /auth/login
+    Axios->>API: {username, password, role}
+    API->>DB: Validate credentials
+    DB-->>API: User data
+    API-->>Axios: {success: true, user_data}
+    Axios-->>State: Update user state
+    State->>Storage: Save user to localStorage
+    UI->>UI: Navigate to /hr
+    UI-->>User: Show HR Dashboard
+
+    %% Job Creation Flow
+    User->>UI: Click "Create Job"
+    UI->>State: Open dialog (useState)
+    User->>UI: Fill job details
+    UI->>State: Update form state
+    User->>UI: Click "Submit"
+    UI->>Axios: POST /hr/job-descriptions
+    Axios->>API: {title, description, skills}
+    API->>DB: INSERT job_descriptions
+    DB-->>API: job_id
+    API-->>Axios: {job_id, ...job_data}
+    Axios-->>State: Update jobs array
+    State->>UI: Close dialog, refresh table
+    UI-->>User: Show success message
+
+    %% Resume Upload Flow
+    User->>UI: Select job, click "Upload"
+    UI->>State: Open upload dialog
+    User->>UI: Select PDF/DOCX files
+    UI->>State: Update files state
+    User->>UI: Click "Process Resumes"
+    UI->>Axios: POST /hr/jobs/{id}/upload-resumes
+    Note over Axios,API: FormData with files
+    Axios->>API: Multipart file upload
+    API->>API: AI Processing (ranking)
+    API->>DB: INSERT resumes
+    DB-->>API: Success
+    API-->>Axios: {ranked_candidates}
+    Axios-->>State: Update candidates state
+    State->>UI: Show ranked candidates
+    UI-->>User: Display ranking scores
+
+    %% Decision Submission
+    User->>UI: Select decisions, click "Submit"
+    UI->>Axios: POST /hr/jobs/{id}/submit-decisions
+    Axios->>API: Decision data
+    API->>API: Send emails
+    API->>DB: UPDATE notifications
+    DB-->>API: Success
+    API-->>Axios: {message: "sent"}
+    Axios-->>State: Clear selections
+    UI-->>User: Show success notification
+```
+
+---
+
 ## Technology Stack
 
 ### Core Framework
