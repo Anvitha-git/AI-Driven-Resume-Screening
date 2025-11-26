@@ -585,11 +585,8 @@ async def get_resumes(jd_id: str, user=Depends(get_current_user)):
     try:
         resumes_resp = supabase_service.table("resumes").select("*").eq("jd_id", jd_id).order("score", desc=True).execute()
         resumes = resumes_resp.data or []
-        # Normalize and sign file_url for each resume
+        # Always normalize file_url to a string public URL
         for r in resumes:
-            fu = r.get("file_url")
-            if isinstance(fu, dict):
-                r["file_url"] = fu.get("data", {}).get("publicUrl") or fu.get("publicUrl") or fu.get("public_url")
             r["file_url"] = _signed_url_for(r.get("file_url"))
         # Fetch candidate emails to avoid showing UUIDs
         user_ids = list({r.get("user_id") for r in resumes if r.get("user_id")})
@@ -756,9 +753,6 @@ async def get_applications(user_id: str, user=Depends(get_current_user)):
         if resume_ids:
             res_resp = supabase_service.table("resumes").select("resume_id, decision, file_url, score, explanation").in_("resume_id", resume_ids).execute()
             for r in (res_resp.data or []):
-                fu = r.get("file_url")
-                if isinstance(fu, dict):
-                    r["file_url"] = fu.get("data", {}).get("publicUrl") or fu.get("publicUrl") or fu.get("public_url")
                 r["file_url"] = _signed_url_for(r.get("file_url"))
                 resumes_map[r["resume_id"]] = r
 

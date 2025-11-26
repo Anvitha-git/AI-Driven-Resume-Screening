@@ -1874,7 +1874,6 @@ function HrDashboard() {
               <h3>🔍 Ranking Explanation</h3>
               <button className="modal-close" onClick={() => setShowExplanationModal(false)}>×</button>
             </div>
-            
             {loadingExplanation ? (
               <div className="modal-body" style={{textAlign: 'center', padding: '3rem'}}>
                 <div className="loading-spinner"></div>
@@ -1882,12 +1881,13 @@ function HrDashboard() {
               </div>
             ) : currentExplanation ? (
               <div className="modal-body explanation-body">
-                {/* Overall Score */}
+                {/* Overall Score (always use model's match_score if available) */}
                 <div className="explanation-section">
                   <div className="explanation-header">
                     <h4>Overall Match Score</h4>
-                    <div className={`score-badge ${currentExplanation.overall_score >= 75 ? 'score-high' : currentExplanation.overall_score >= 60 ? 'score-medium' : 'score-low'}`}>
-                      {currentExplanation.overall_score}%
+                    <div className={`score-badge ${((currentExplanation.match_score ?? currentExplanation.overall_score) >= 75) ? 'score-high' : ((currentExplanation.match_score ?? currentExplanation.overall_score) >= 60 ? 'score-medium' : 'score-low')}`}>
+                      {/* Always show model score if available, fallback to LIME score */}
+                      {typeof currentExplanation.match_score === 'number' ? `${(currentExplanation.match_score * 100).toFixed(1)}%` : `${currentExplanation.overall_score}%`}
                     </div>
                   </div>
                   <p className="explanation-summary">{currentExplanation.interpretation.summary}</p>

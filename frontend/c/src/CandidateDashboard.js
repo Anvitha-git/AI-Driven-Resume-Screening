@@ -96,6 +96,8 @@ function CandidateDashboard() {
   const [showNotifDropdown, setShowNotifDropdown] = useState(false);
 
   // Close dropdowns when clicking outside
+
+
   useEffect(() => {
     const handleClickOutside = (event) => {
       // Close notifications dropdown if clicked outside
@@ -113,6 +115,26 @@ function CandidateDashboard() {
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [showNotifDropdown, showProfileDropdown]);
+
+  // Notification preferences loader - define before use to satisfy ESLint
+  const loadNotificationPreferences = useCallback(async () => {
+    try {
+      const userId = localStorage.getItem('user_id');
+      const token = getAccessToken();
+      const response = await axios.get(`http://localhost:8000/user-preferences/${userId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (response.data) {
+        setNotificationPrefs({
+          emailNotifications: response.data.email_notifications ?? true,
+          statusUpdates: response.data.status_updates ?? true,
+          jobAlerts: response.data.job_alerts ?? true
+        });
+      }
+    } catch (error) {
+      console.log('Could not load preferences, using defaults');
+    }
+  }, []);
 
   useEffect(() => {
     const userId = localStorage.getItem('user_id');
@@ -162,6 +184,7 @@ function CandidateDashboard() {
       });
       setNotifications(res.data || []);
     }).catch((err) => console.error('Error fetching notifications:', err));
+
 
     // Load notification preferences
     loadNotificationPreferences();
@@ -310,26 +333,6 @@ const hasOpenApplication = () => {
       setNameError(error.response?.data?.detail || 'Failed to update name');
     }
   };
-
-  // Notification preferences handlers
-  const loadNotificationPreferences = useCallback(async () => {
-    try {
-      const userId = localStorage.getItem('user_id');
-      const token = getAccessToken();
-      const response = await axios.get(`http://localhost:8000/user-preferences/${userId}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (response.data) {
-        setNotificationPrefs({
-          emailNotifications: response.data.email_notifications ?? true,
-          statusUpdates: response.data.status_updates ?? true,
-          jobAlerts: response.data.job_alerts ?? true
-        });
-      }
-    } catch (error) {
-      console.log('Could not load preferences, using defaults');
-    }
-  }, []);
 
   const updateNotificationPref = async (prefKey, value) => {
     const newPrefs = { ...notificationPrefs, [prefKey]: value };
