@@ -892,6 +892,7 @@
 .settings-action-btn {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 0.75rem;
   padding: 1rem 2rem;
   background: #2563eb;
@@ -902,6 +903,24 @@
   font-size: 1rem;
   cursor: pointer;
   transition: all 0.3s ease;
+  white-space: nowrap;
+  width: fit-content;
+  overflow: visible;
+}
+
+.settings-action-btn .settings-action-label {
+  color: #ffffff;
+  font-size: 1rem;
+  line-height: 1.25rem;
+  display: inline-block;
+  opacity: 1;
+  visibility: visible;
+  position: relative;
+  z-index: 1;
+}
+
+.settings-action-btn svg {
+  flex-shrink: 0;
 }
 
 .settings-action-btn:hover {
@@ -3044,3 +3063,36 @@ input, textarea, select {
 }
 
 /* --- END THEME PATCH --- */
+
+/* PDF Viewer Modal */
+.pdf-modal-content {
+  background: var(--card-bg, #fff);
+  border-radius: 16px;
+  width: 90vw;
+  max-width: 1200px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  overflow: hidden;
+}
+
+.pdf-modal-content .modal-header {
+  flex-shrink: 0;
+}
+
+.pdf-modal-content .modal-body {
+  flex: 1;
+  overflow: auto;
+}
+
+[data-theme='dark'] .pdf-modal-content {
+  background: #232a36 !important;
+}
+
+@media (max-width: 768px) {
+  .pdf-modal-content {
+    width: 95vw;
+    max-height: 85vh;
+  }
+}

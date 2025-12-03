@@ -72,14 +72,14 @@ function HrDashboard() {
           headers: { Authorization: `Bearer ${token}` },
         })
       ));
-      setAlertMessage('Job posted successfully!'); setShowAlertModal(true);
+      setAlertType('success'); setAlertMessage('Job posted successfully!'); setShowAlertModal(true);
       setNewJob({ title: '', description: '', requirements: '', deadline: '', weights: { skills: 0.4, experience: 0.4, education: 0.2 } });
       fetchJobs();
     } catch (error) {
       // Surface backend error details if available
       const msg = error?.response?.data?.detail ? `Failed to post job: ${error.response.data.detail}` : 'Failed to post job';
       console.error('Post job error:', error);
-      setAlertMessage(msg); setShowAlertModal(true);
+      setAlertType('error'); setAlertMessage(msg); setShowAlertModal(true);
     }
   };
 
@@ -124,7 +124,7 @@ function HrDashboard() {
     } catch (error) {
       console.error('Rank resumes error:', error);
       const msg = error?.response?.data?.detail ? `Failed to rank resumes: ${error.response.data.detail}` : 'Failed to rank resumes';
-      setAlertMessage(msg); setShowAlertModal(true);
+      setAlertType('error'); setAlertMessage(msg); setShowAlertModal(true);
     }
     setRankingJob(null);
   };
@@ -158,23 +158,6 @@ function HrDashboard() {
   const [candidates, setCandidates] = useState([]);
   const [currentJobId, setCurrentJobId] = useState(null); // Track which job's candidates are being viewed
   const [openCandidatesDialog, setOpenCandidatesDialog] = useState(false);
-  
-  // Load candidates dialog state from localStorage on mount
-  useEffect(() => {
-    const savedDialogState = localStorage.getItem('hr_candidates_dialog');
-    if (savedDialogState) {
-      try {
-        const { isOpen, jobId, candidatesList } = JSON.parse(savedDialogState);
-        if (isOpen && jobId && candidatesList) {
-          setOpenCandidatesDialog(true);
-          setCurrentJobId(jobId);
-          setCandidates(candidatesList);
-        }
-      } catch (e) {
-        console.error('Failed to restore candidates dialog:', e);
-      }
-    }
-  }, []);
   const [rankingJob, setRankingJob] = useState(null);
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
   const [showSideDrawer, setShowSideDrawer] = useState(false);
@@ -185,6 +168,78 @@ function HrDashboard() {
   const [candidatesSearchTerm, setCandidatesSearchTerm] = useState('');
   const [candidatesFilterTab, setCandidatesFilterTab] = useState('all'); // 'all', 'skills', 'experience', 'match-score'
   const [decisionFilter, setDecisionFilter] = useState('all'); // 'all', 'selected', 'rejected', 'pending'
+  // Notification preferences state (HR)
+  const [preferences, setPreferences] = useState({
+    emailNotifications: true,
+    statusUpdates: true,
+    jobAlerts: true,
+  });
+
+  // Load HR notification preferences
+  useEffect(() => {
+    const loadPrefs = async () => {
+      try {
+        const response = await withAuth(async (token) => {
+          return await axios.get('http://localhost:8000/preferences', {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+        });
+        setPreferences({
+          emailNotifications: response.data.email_notifications ?? true,
+          statusUpdates: response.data.status_updates ?? true,
+          jobAlerts: response.data.job_alerts ?? true,
+        });
+      } catch (e) {
+        console.warn('Failed to load preferences:', e);
+      }
+    };
+    loadPrefs();
+  }, [withAuth]);
+
+  // Toggle handler
+  const handlePreferenceToggle = async (key, value) => {
+    const newPrefs = { ...preferences, [key]: value };
+    setPreferences(newPrefs);
+    try {
+      await withAuth(async (token) => {
+        return await axios.put('http://localhost:8000/preferences', {
+          email_notifications: newPrefs.emailNotifications,
+          status_updates: newPrefs.statusUpdates,
+          job_alerts: newPrefs.jobAlerts,
+        }, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+      });
+    } catch (e) {
+      console.error('Failed to update preferences:', e);
+      setAlertType('error'); setAlertMessage('Failed to save preferences'); setShowAlertModal(true);
+    }
+  };
+  
+  // Load candidates dialog state from localStorage on mount
+  useEffect(() => {
+    const savedDialogState = localStorage.getItem('hr_candidates_dialog');
+    if (savedDialogState) {
+      try {
+        const { isOpen, jobId, candidatesList } = JSON.parse(savedDialogState);
+        if (isOpen && jobId && candidatesList && activePage === 'job-postings') {
+          setOpenCandidatesDialog(true);
+          setCurrentJobId(jobId);
+          setCandidates(candidatesList);
+        }
+      } catch (e) {
+        console.error('Failed to restore candidates dialog:', e);
+      }
+    }
+  }, [activePage]);
+  
+  // Close candidates dialog when navigating away from job postings
+  useEffect(() => {
+    if (activePage !== 'job-postings' && openCandidatesDialog) {
+      setOpenCandidatesDialog(false);
+      localStorage.removeItem('hr_candidates_dialog');
+    }
+  }, [activePage, openCandidatesDialog]);
   
   // Settings state for HR
   const [showEditNameModal, setShowEditNameModal] = useState(false);
@@ -201,6 +256,7 @@ function HrDashboard() {
   // Alert dialog state
   const [showAlertModal, setShowAlertModal] = useState(false);
   const [alertMessage, setAlertMessage] = useState('');
+  const [alertType, setAlertType] = useState('success'); // 'success' or 'error'
 
   // Close profile dropdown when clicking outside
   useEffect(() => {
@@ -391,7 +447,7 @@ function HrDashboard() {
       const userId = localStorage.getItem('user_id');
       
       if (!getAccessToken()) {
-        setAlertMessage('No token found. Please login again.'); setShowAlertModal(true);
+        setAlertType('error'); setAlertMessage('No token found. Please login again.'); setShowAlertModal(true);
         navigate('/login');
         return;
       }
@@ -425,7 +481,7 @@ function HrDashboard() {
       
       // Success - decision saved (no alert to avoid spam)
     } catch (error) {
-      setAlertMessage('Failed to update decision'); setShowAlertModal(true);
+      setAlertType('error'); setAlertMessage('Failed to update decision'); setShowAlertModal(true);
     }
   };
 
@@ -466,11 +522,11 @@ function HrDashboard() {
           job.jd_id === currentJobId ? { ...job, status: 'closed' } : job
         ));
         
-        setAlertMessage('Decisions submitted successfully! Candidates have been notified via email.'); setShowAlertModal(true);
+        setAlertType('success'); setAlertMessage('Decisions submitted successfully! Candidates have been notified via email.'); setShowAlertModal(true);
       } catch (err) {
         console.error('Failed to submit decisions:', err);
         const errorMsg = err?.response?.data?.detail || err?.message || 'Unknown error';
-        setAlertMessage(`Failed to submit decisions: ${errorMsg}`); setShowAlertModal(true);
+        setAlertType('error'); setAlertMessage(`Failed to submit decisions: ${errorMsg}`); setShowAlertModal(true);
         return;
       }
     }
@@ -482,16 +538,27 @@ function HrDashboard() {
     localStorage.removeItem('hr_candidates_dialog');
   };
 
-  const handleViewResume = (fileUrl) => {
-    let url = fileUrl;
-    if (fileUrl && typeof fileUrl === 'object') {
-      url = fileUrl.publicUrl || fileUrl.public_url || fileUrl?.data?.publicUrl;
+  const handleViewResume = async (fileUrl) => {
+    try {
+      let resumePath = fileUrl;
+      if (fileUrl && typeof fileUrl === 'object') {
+        resumePath = fileUrl.publicUrl || fileUrl.public_url || fileUrl?.data?.publicUrl;
+      }
+      if (!resumePath || typeof resumePath !== 'string') {
+        setAlertType('error'); setAlertMessage('Resume URL is not available.'); setShowAlertModal(true);
+        return;
+      }
+
+      // Remove trailing ? and any query parameters
+      resumePath = resumePath.split('?')[0];
+
+      // Use Google Docs Viewer as a workaround for PDF viewing
+      const googleDocsUrl = `https://docs.google.com/viewer?url=${encodeURIComponent(resumePath)}&embedded=true`;
+      window.open(googleDocsUrl, '_blank', 'noopener,noreferrer');
+    } catch (error) {
+      console.error('Error viewing resume:', error);
+      setAlertType('error'); setAlertMessage('Failed to load resume. Please try again.'); setShowAlertModal(true);
     }
-    if (!url || typeof url !== 'string') {
-      setAlertMessage('Resume URL is not available.'); setShowAlertModal(true);
-      return;
-    }
-    window.open(url, '_blank', 'noopener,noreferrer');
   };
 
   const handleExplainRanking = async (resumeId) => {
@@ -509,7 +576,7 @@ function HrDashboard() {
       setCurrentExplanation(response.data);
     } catch (error) {
       console.error('Failed to load explanation:', error);
-      setAlertMessage('Failed to load ranking explanation. Please try again.'); setShowAlertModal(true);
+      setAlertType('error'); setAlertMessage('Failed to load ranking explanation. Please try again.'); setShowAlertModal(true);
       setShowExplanationModal(false);
     } finally {
       setLoadingExplanation(false);
@@ -551,7 +618,7 @@ function HrDashboard() {
       localStorage.setItem('name', newName.trim());
       setShowEditNameModal(false);
       setNameError('');
-      setAlertMessage('Name updated successfully!'); setShowAlertModal(true);
+      setAlertType('success'); setAlertMessage('Name updated successfully!'); setShowAlertModal(true);
     } catch (error) {
       console.error('Error updating name:', error);
       setNameError(error.response?.data?.detail || 'Failed to update name');
@@ -565,15 +632,15 @@ function HrDashboard() {
 
   const handlePasswordSubmit = async () => {
     if (!passwordData.current || !passwordData.new || !passwordData.confirm) {
-      setAlertMessage('Please fill in all password fields'); setShowAlertModal(true);
+      setAlertType('error'); setAlertMessage('Please fill in all password fields'); setShowAlertModal(true);
       return;
     }
     if (passwordData.new !== passwordData.confirm) {
-      setAlertMessage('New passwords do not match'); setShowAlertModal(true);
+      setAlertType('error'); setAlertMessage('New passwords do not match'); setShowAlertModal(true);
       return;
     }
     if (passwordData.new.length < 6) {
-      setAlertMessage('Password must be at least 6 characters long'); setShowAlertModal(true);
+      setAlertType('error'); setAlertMessage('Password must be at least 6 characters long'); setShowAlertModal(true);
       return;
     }
     
@@ -586,18 +653,18 @@ function HrDashboard() {
         headers: { Authorization: `Bearer ${token}` }
       });
       
-      setAlertMessage('Password changed successfully!'); setShowAlertModal(true);
+      setAlertType('success'); setAlertMessage('Password changed successfully!'); setShowAlertModal(true);
       setShowPasswordModal(false);
       setPasswordData({ current: '', new: '', confirm: '' });
     } catch (error) {
       if (error.response?.status === 401) {
-        setAlertMessage('Current password is incorrect'); setShowAlertModal(true);
+        setAlertType('error'); setAlertMessage('Current password is incorrect'); setShowAlertModal(true);
       } else if (error.response?.status === 404) {
-        setAlertMessage('Password change feature coming soon! Your request has been noted.'); setShowAlertModal(true);
+        setAlertType('error'); setAlertMessage('Password change feature coming soon! Your request has been noted.'); setShowAlertModal(true);
         setShowPasswordModal(false);
         setPasswordData({ current: '', new: '', confirm: '' });
       } else {
-        setAlertMessage('Error changing password. Please try again later.'); setShowAlertModal(true);
+        setAlertType('error'); setAlertMessage('Error changing password. Please try again later.'); setShowAlertModal(true);
       }
     }
   };
@@ -616,7 +683,7 @@ function HrDashboard() {
         console.log(`Received ${jobsData.length} jobs from backend`);
         
         if (jobsData.length === 0) {
-          setAlertMessage('No jobs to export. You need to post at least one job first.'); setShowAlertModal(true);
+          setAlertType('error'); setAlertMessage('No jobs to export. You need to post at least one job first.'); setShowAlertModal(true);
           return;
         }
 
@@ -649,12 +716,12 @@ function HrDashboard() {
         document.body.removeChild(link);
         
         console.log('Export completed successfully!');
-        setAlertMessage(`Successfully exported ${jobsData.length} job(s)!`); setShowAlertModal(true);
+        setAlertType('success'); setAlertMessage(`Successfully exported ${jobsData.length} job(s)!`); setShowAlertModal(true);
       });
     } catch (error) {
       console.error('Export error:', error);
       const errorMsg = error?.response?.data?.detail || error?.message || 'Unknown error';
-      setAlertMessage(`Failed to export jobs: ${errorMsg}`); setShowAlertModal(true);
+      setAlertType('error'); setAlertMessage(`Failed to export jobs: ${errorMsg}`); setShowAlertModal(true);
     }
   };
 
@@ -672,7 +739,7 @@ function HrDashboard() {
         console.log(`Found ${allJobs.length} jobs`);
         
         if (allJobs.length === 0) {
-          setAlertMessage('No jobs found. Please post a job first before exporting applications.'); setShowAlertModal(true);
+          setAlertType('error'); setAlertMessage('No jobs found. Please post a job first before exporting applications.'); setShowAlertModal(true);
           return;
         }
 
@@ -707,7 +774,7 @@ function HrDashboard() {
         console.log(`Total applications to export: ${allApplications.length}`);
 
         if (allApplications.length === 0) {
-          setAlertMessage('No applications to export. Jobs exist but no candidates have applied yet.'); setShowAlertModal(true);
+          setAlertType('error'); setAlertMessage('No applications to export. Jobs exist but no candidates have applied yet.'); setShowAlertModal(true);
           return;
         }
 
@@ -741,12 +808,12 @@ function HrDashboard() {
         document.body.removeChild(link);
         
         console.log('Export completed successfully!');
-        setAlertMessage(`Successfully exported ${allApplications.length} application(s) from ${allJobs.length} job(s)!`); setShowAlertModal(true);
+        setAlertType('success'); setAlertMessage(`Successfully exported ${allApplications.length} application(s) from ${allJobs.length} job(s)!`); setShowAlertModal(true);
       });
     } catch (error) {
       console.error('Export applications error:', error);
       const errorMsg = error?.response?.data?.detail || error?.message || 'Unknown error';
-      setAlertMessage(`Failed to export applications: ${errorMsg}`); setShowAlertModal(true);
+      setAlertType('error'); setAlertMessage(`Failed to export applications: ${errorMsg}`); setShowAlertModal(true);
     }
   };
 
@@ -1374,7 +1441,7 @@ function HrDashboard() {
                 <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
                 <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
               </svg>
-              Change Password
+              <span className="settings-action-label">Change Password</span>
             </button>
             <p className="settings-help-text">Update your password to keep your account secure</p>
           </div>
@@ -1553,7 +1620,11 @@ function HrDashboard() {
                   <p className="settings-option-description">Receive email updates about new applications</p>
                 </div>
                 <label className="toggle-switch">
-                  <input type="checkbox" defaultChecked />
+                  <input
+                    type="checkbox"
+                    checked={preferences.emailNotifications}
+                    onChange={(e) => handlePreferenceToggle('emailNotifications', e.target.checked)}
+                  />
                   <span className="toggle-slider"></span>
                 </label>
               </div>
@@ -1563,7 +1634,11 @@ function HrDashboard() {
                   <p className="settings-option-description">Get notified when candidates apply to your jobs</p>
                 </div>
                 <label className="toggle-switch">
-                  <input type="checkbox" defaultChecked />
+                  <input
+                    type="checkbox"
+                    checked={preferences.statusUpdates}
+                    onChange={(e) => handlePreferenceToggle('statusUpdates', e.target.checked)}
+                  />
                   <span className="toggle-slider"></span>
                 </label>
               </div>
@@ -1573,9 +1648,13 @@ function HrDashboard() {
                   <p className="settings-option-description">Receive weekly hiring analytics and summaries</p>
                 </div>
                 <label className="toggle-switch">
-                  <input type="checkbox" defaultChecked />
+                  <input
+                    type="checkbox"
+                    checked={preferences.jobAlerts}
+                    onChange={(e) => handlePreferenceToggle('jobAlerts', e.target.checked)}
+                  />
                   <span className="toggle-slider"></span>
-                               </label>
+                </label>
               </div>
             </div>
           </div>
@@ -1805,18 +1884,34 @@ function HrDashboard() {
         </div>
       )}
 
-      {/* Browser-style Alert Modal */}
+      {/* Alert Modal */}
       {showAlertModal && (
         <div className="modal-overlay" onClick={() => setShowAlertModal(false)}>
-          <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: 380, borderRadius: 12, boxShadow: '0 8px 32px rgba(0,0,0,0.18)', background: 'var(--card-bg, #fff)', color: 'var(--font-color, #222)', padding: 0 }}>
-            <div className="modal-header" style={{ padding: '1.2rem 1.5rem 0.7rem 1.5rem', borderBottom: '1px solid #e5e7eb', fontWeight: 600, fontSize: 17 }}>
-              localhost says:
-            </div>
-            <div className="modal-body" style={{ padding: '1.5rem', fontSize: 16, color: 'inherit' }}>
-              {alertMessage}
-            </div>
-            <div className="modal-footer" style={{ padding: '0.7rem 1.5rem 1.2rem 1.5rem', textAlign: 'right', borderTop: '1px solid #e5e7eb' }}>
-              <button className="modal-btn primary" style={{ minWidth: 80 }} onClick={() => setShowAlertModal(false)}>OK</button>
+          <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: 420, borderRadius: 16, boxShadow: '0 8px 32px rgba(0,0,0,0.18)', background: 'var(--card-bg, #fff)', color: 'var(--font-color, #222)', padding: '2rem 1.5rem' }}>
+            <div className="modal-body" style={{ padding: 0, textAlign: 'center' }}>
+              <div style={{ marginBottom: '1.25rem' }}>
+                {alertType === 'success' ? (
+                  <div style={{ width: 64, height: 64, borderRadius: '50%', background: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto', boxShadow: '0 4px 16px rgba(16, 185, 129, 0.3)' }}>
+                    <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="20 6 9 17 4 12"/>
+                    </svg>
+                  </div>
+                ) : (
+                  <div style={{ width: 64, height: 64, borderRadius: '50%', background: '#ef4444', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto', boxShadow: '0 4px 16px rgba(239, 68, 68, 0.3)' }}>
+                    <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="10"/>
+                      <line x1="12" y1="8" x2="12" y2="12"/>
+                      <line x1="12" y1="16" x2="12.01" y2="16"/>
+                    </svg>
+                  </div>
+                )}
+              </div>
+              <div style={{ fontSize: 17, fontWeight: 500, lineHeight: 1.6, color: 'inherit', marginBottom: '1.5rem' }}>
+                {alertMessage}
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'center' }}>
+                <button className="modal-btn primary" style={{ minWidth: 100, padding: '0.65rem 1.5rem', fontSize: 15 }} onClick={() => setShowAlertModal(false)}>OK</button>
+              </div>
             </div>
           </div>
         </div>
@@ -1871,18 +1966,6 @@ function HrDashboard() {
               </div>
             ) : currentExplanation ? (
               <div className="modal-body explanation-body">
-                {/* Overall Score (always use model's match_score if available) */}
-                <div className="explanation-section">
-                  <div className="explanation-header">
-                    <h4>Overall Match Score</h4>
-                    <div className={`score-badge ${((currentExplanation.match_score ?? currentExplanation.overall_score) >= 75) ? 'score-high' : ((currentExplanation.match_score ?? currentExplanation.overall_score) >= 60 ? 'score-medium' : 'score-low')}`}>
-                      {/* Always show model score if available, fallback to LIME score */}
-                      {typeof currentExplanation.match_score === 'number' ? `${(currentExplanation.match_score * 100).toFixed(1)}%` : `${currentExplanation.overall_score}%`}
-                    </div>
-                  </div>
-                  <p className="explanation-summary">{currentExplanation.interpretation.summary}</p>
-                </div>
-
                 {/* Score Breakdown */}
                 <div className="explanation-section">
                   <h4>Score Breakdown</h4>
@@ -2028,6 +2111,8 @@ function HrDashboard() {
           </div>
         </div>
       )}
+
+
       </div>
     </div>
   );

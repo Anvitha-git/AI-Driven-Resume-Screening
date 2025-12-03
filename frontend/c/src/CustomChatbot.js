@@ -204,6 +204,9 @@ function CustomChatbot() {
           <div className="custom-chatbot-messages">
             {messages.map((msg, idx) => (
               <div key={idx} className={`chat-message ${msg.sender}`}>
+                <div className="chat-avatar">
+                  {msg.sender === 'bot' ? '🤖' : '👤'}
+                </div>
                 <div className="chat-message-bubble">
                   {msg.text}
                 </div>
@@ -211,6 +214,7 @@ function CustomChatbot() {
             ))}
             {isLoading && (
               <div className="chat-message bot">
+                <div className="chat-avatar">🤖</div>
                 <div className="chat-message-bubble typing-indicator">
                   <span></span><span></span><span></span>
                 </div>
