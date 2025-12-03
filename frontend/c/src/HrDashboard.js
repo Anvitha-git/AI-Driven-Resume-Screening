@@ -5,6 +5,12 @@ import './Dashboard.css';
 import './ExplanationModal.css';
 
 function HrDashboard() {
+      // To show the modal, call:
+      // setAlertMessage('Your message here'); setShowAlertModal(true);
+    // Modal state for browser-style alert
+
+    // To show the modal, call:
+    // setAlertMessage('Your message here'); setShowAlertModal(true);
   // Auth helpers: refresh expired access tokens and retry the request
   const getAccessToken = () => localStorage.getItem('access_token') || localStorage.getItem('token');
   const tryRefreshToken = useCallback(async () => {
@@ -66,14 +72,14 @@ function HrDashboard() {
           headers: { Authorization: `Bearer ${token}` },
         })
       ));
-      alert('Job posted successfully!');
+      setAlertMessage('Job posted successfully!'); setShowAlertModal(true);
       setNewJob({ title: '', description: '', requirements: '', deadline: '', weights: { skills: 0.4, experience: 0.4, education: 0.2 } });
       fetchJobs();
     } catch (error) {
       // Surface backend error details if available
       const msg = error?.response?.data?.detail ? `Failed to post job: ${error.response.data.detail}` : 'Failed to post job';
       console.error('Post job error:', error);
-      alert(msg);
+      setAlertMessage(msg); setShowAlertModal(true);
     }
   };
 
@@ -118,7 +124,7 @@ function HrDashboard() {
     } catch (error) {
       console.error('Rank resumes error:', error);
       const msg = error?.response?.data?.detail ? `Failed to rank resumes: ${error.response.data.detail}` : 'Failed to rank resumes';
-      alert(msg);
+      setAlertMessage(msg); setShowAlertModal(true);
     }
     setRankingJob(null);
   };
@@ -191,6 +197,10 @@ function HrDashboard() {
   const [showExplanationModal, setShowExplanationModal] = useState(false);
   const [currentExplanation, setCurrentExplanation] = useState(null);
   const [loadingExplanation, setLoadingExplanation] = useState(false);
+
+  // Alert dialog state
+  const [showAlertModal, setShowAlertModal] = useState(false);
+  const [alertMessage, setAlertMessage] = useState('');
 
   // Close profile dropdown when clicking outside
   useEffect(() => {
@@ -381,7 +391,7 @@ function HrDashboard() {
       const userId = localStorage.getItem('user_id');
       
       if (!getAccessToken()) {
-        alert('No token found. Please login again.');
+        setAlertMessage('No token found. Please login again.'); setShowAlertModal(true);
         navigate('/login');
         return;
       }
@@ -415,7 +425,7 @@ function HrDashboard() {
       
       // Success - decision saved (no alert to avoid spam)
     } catch (error) {
-      alert('Failed to update decision');
+      setAlertMessage('Failed to update decision'); setShowAlertModal(true);
     }
   };
 
@@ -456,11 +466,11 @@ function HrDashboard() {
           job.jd_id === currentJobId ? { ...job, status: 'closed' } : job
         ));
         
-        alert('Decisions submitted successfully! Candidates have been notified via email.');
+        setAlertMessage('Decisions submitted successfully! Candidates have been notified via email.'); setShowAlertModal(true);
       } catch (err) {
         console.error('Failed to submit decisions:', err);
         const errorMsg = err?.response?.data?.detail || err?.message || 'Unknown error';
-        alert(`Failed to submit decisions: ${errorMsg}`);
+        setAlertMessage(`Failed to submit decisions: ${errorMsg}`); setShowAlertModal(true);
         return;
       }
     }
@@ -478,7 +488,7 @@ function HrDashboard() {
       url = fileUrl.publicUrl || fileUrl.public_url || fileUrl?.data?.publicUrl;
     }
     if (!url || typeof url !== 'string') {
-      alert('Resume URL is not available.');
+      setAlertMessage('Resume URL is not available.'); setShowAlertModal(true);
       return;
     }
     window.open(url, '_blank', 'noopener,noreferrer');
@@ -499,7 +509,7 @@ function HrDashboard() {
       setCurrentExplanation(response.data);
     } catch (error) {
       console.error('Failed to load explanation:', error);
-      alert('Failed to load ranking explanation. Please try again.');
+      setAlertMessage('Failed to load ranking explanation. Please try again.'); setShowAlertModal(true);
       setShowExplanationModal(false);
     } finally {
       setLoadingExplanation(false);
@@ -541,7 +551,7 @@ function HrDashboard() {
       localStorage.setItem('name', newName.trim());
       setShowEditNameModal(false);
       setNameError('');
-      alert('Name updated successfully!');
+      setAlertMessage('Name updated successfully!'); setShowAlertModal(true);
     } catch (error) {
       console.error('Error updating name:', error);
       setNameError(error.response?.data?.detail || 'Failed to update name');
@@ -555,15 +565,15 @@ function HrDashboard() {
 
   const handlePasswordSubmit = async () => {
     if (!passwordData.current || !passwordData.new || !passwordData.confirm) {
-      alert('Please fill in all password fields');
+      setAlertMessage('Please fill in all password fields'); setShowAlertModal(true);
       return;
     }
     if (passwordData.new !== passwordData.confirm) {
-      alert('New passwords do not match');
+      setAlertMessage('New passwords do not match'); setShowAlertModal(true);
       return;
     }
     if (passwordData.new.length < 6) {
-      alert('Password must be at least 6 characters long');
+      setAlertMessage('Password must be at least 6 characters long'); setShowAlertModal(true);
       return;
     }
     
@@ -576,18 +586,18 @@ function HrDashboard() {
         headers: { Authorization: `Bearer ${token}` }
       });
       
-      alert('Password changed successfully!');
+      setAlertMessage('Password changed successfully!'); setShowAlertModal(true);
       setShowPasswordModal(false);
       setPasswordData({ current: '', new: '', confirm: '' });
     } catch (error) {
       if (error.response?.status === 401) {
-        alert('Current password is incorrect');
+        setAlertMessage('Current password is incorrect'); setShowAlertModal(true);
       } else if (error.response?.status === 404) {
-        alert('Password change feature coming soon! Your request has been noted.');
+        setAlertMessage('Password change feature coming soon! Your request has been noted.'); setShowAlertModal(true);
         setShowPasswordModal(false);
         setPasswordData({ current: '', new: '', confirm: '' });
       } else {
-        alert('Error changing password. Please try again later.');
+        setAlertMessage('Error changing password. Please try again later.'); setShowAlertModal(true);
       }
     }
   };
@@ -606,7 +616,7 @@ function HrDashboard() {
         console.log(`Received ${jobsData.length} jobs from backend`);
         
         if (jobsData.length === 0) {
-          alert('No jobs to export. You need to post at least one job first.');
+          setAlertMessage('No jobs to export. You need to post at least one job first.'); setShowAlertModal(true);
           return;
         }
 
@@ -639,12 +649,12 @@ function HrDashboard() {
         document.body.removeChild(link);
         
         console.log('Export completed successfully!');
-        alert(`Successfully exported ${jobsData.length} job(s)!`);
+        setAlertMessage(`Successfully exported ${jobsData.length} job(s)!`); setShowAlertModal(true);
       });
     } catch (error) {
       console.error('Export error:', error);
       const errorMsg = error?.response?.data?.detail || error?.message || 'Unknown error';
-      alert(`Failed to export jobs: ${errorMsg}`);
+      setAlertMessage(`Failed to export jobs: ${errorMsg}`); setShowAlertModal(true);
     }
   };
 
@@ -662,7 +672,7 @@ function HrDashboard() {
         console.log(`Found ${allJobs.length} jobs`);
         
         if (allJobs.length === 0) {
-          alert('No jobs found. Please post a job first before exporting applications.');
+          setAlertMessage('No jobs found. Please post a job first before exporting applications.'); setShowAlertModal(true);
           return;
         }
 
@@ -697,7 +707,7 @@ function HrDashboard() {
         console.log(`Total applications to export: ${allApplications.length}`);
 
         if (allApplications.length === 0) {
-          alert('No applications to export. Jobs exist but no candidates have applied yet.');
+          setAlertMessage('No applications to export. Jobs exist but no candidates have applied yet.'); setShowAlertModal(true);
           return;
         }
 
@@ -731,13 +741,22 @@ function HrDashboard() {
         document.body.removeChild(link);
         
         console.log('Export completed successfully!');
-        alert(`Successfully exported ${allApplications.length} application(s) from ${allJobs.length} job(s)!`);
+        setAlertMessage(`Successfully exported ${allApplications.length} application(s) from ${allJobs.length} job(s)!`); setShowAlertModal(true);
       });
     } catch (error) {
       console.error('Export applications error:', error);
       const errorMsg = error?.response?.data?.detail || error?.message || 'Unknown error';
-      alert(`Failed to export applications: ${errorMsg}`);
+      setAlertMessage(`Failed to export applications: ${errorMsg}`); setShowAlertModal(true);
     }
+  };
+
+  const [theme, setTheme] = useState(localStorage.getItem('theme') || 'light');
+
+  const handleThemeToggle = () => {
+    const newTheme = theme === 'light' ? 'dark' : 'light';
+    setTheme(newTheme);
+    localStorage.setItem('theme', newTheme);
+    document.documentElement.setAttribute('data-theme', newTheme);
   };
 
   return (
@@ -755,70 +774,73 @@ function HrDashboard() {
           </button>
           <div>
             <h1 className="dashboard-title">HR Dashboard</h1>
-            <div className="dashboard-welcome">
-              {(() => {
-                const name = localStorage.getItem('name');
-                if (name) {
-                  return `Welcome, ${name.charAt(0).toUpperCase() + name.slice(1)}`;
-                }
-                const email = localStorage.getItem('email');
-                const base = email || 'HR User';
-                const namePart = base.includes('@') ? base.split('@')[0] : base;
-                return `Welcome, ${namePart.charAt(0).toUpperCase() + namePart.slice(1)}`;
-              })()}
-            </div>
           </div>
         </div>
-        <div className="dashboard-profile-container">
-          <div 
-            className="dashboard-profile-icon" 
-            onClick={() => setShowProfileDropdown(!showProfileDropdown)}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <button
+            aria-label="Toggle theme"
+            onClick={handleThemeToggle}
+            className="theme-toggle-btn"
           >
-            <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <circle cx="20" cy="20" r="19" fill="white" stroke="#667eea" strokeWidth="2"/>
-              <path d="M20 20C22.7614 20 25 17.7614 25 15C25 12.2386 22.7614 10 20 10C17.2386 10 15 12.2386 15 15C15 17.7614 17.2386 20 20 20Z" fill="#667eea"/>
-              <path d="M12 30C12 25.5817 15.5817 22 20 22C24.4183 22 28 25.5817 28 30" stroke="#667eea" strokeWidth="2" strokeLinecap="round"/>
-            </svg>
-          </div>
-          {showProfileDropdown && (
-            <div className="dashboard-profile-dropdown">
-              <div className="dashboard-profile-info">
-                <div className="dashboard-profile-email">
-                  {(() => {
-                    const name = localStorage.getItem('name');
-                    if (name) {
-                      return name.charAt(0).toUpperCase() + name.slice(1);
-                    }
-                    const email = localStorage.getItem('email');
-                    const userId = localStorage.getItem('user_id') || 'HR User';
-                    const base = email || userId;
-                    const namePart = base.includes('@') ? base.split('@')[0] : base;
-                    return namePart.charAt(0).toUpperCase() + namePart.slice(1);
-                  })()}
-                </div>
-                <div className="dashboard-profile-role">Role: HR</div>
-              </div>
-              <div className="dashboard-profile-divider"></div>
-              <button 
-                className="dashboard-profile-menu-item" 
-                onClick={() => { setShowProfileDropdown(false); setActivePage('profile'); }}
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-                  <circle cx="12" cy="7" r="4"/>
-                </svg>
-                My Profile
-              </button>
-              <div className="dashboard-profile-divider"></div>
-              <button className="dashboard-profile-logout" onClick={handleLogout}>
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                  <path d="M3 1a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1H3zm7.5 10.5v2H3v-12h7.5v2h1v-2.5a.5.5 0 0 0-.5-.5H3a.5.5 0 0 0-.5.5v13a.5.5 0 0 0 .5.5h8a.5.5 0 0 0 .5-.5v-2.5h-1z"/>
-                  <path d="M15.854 8.354a.5.5 0 0 0 0-.708l-3-3a.5.5 0 0 0-.708.708L14.293 7.5H6.5a.5.5 0 0 0 0 1h7.793l-2.147 2.146a.5.5 0 0 0 .708.708l3-3z"/>
-                </svg>
-                Logout
-              </button>
+            {theme === 'light' ? (
+              // Sun SVG
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+            ) : (
+              // Moon SVG
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1111.21 3a7 7 0 109.79 9.79z"/></svg>
+            )}
+          </button>
+          <div className="dashboard-profile-container">
+            <div 
+              className="dashboard-profile-icon" 
+              onClick={() => setShowProfileDropdown(!showProfileDropdown)}
+            >
+              <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="20" cy="20" r="19" fill="white" stroke="#667eea" strokeWidth="2"/>
+                <path d="M20 20C22.7614 20 25 17.7614 25 15C25 12.2386 22.7614 10 20 10C17.2386 10 15 12.2386 15 15C15 17.7614 17.2386 20 20 20Z" fill="#667eea"/>
+                <path d="M12 30C12 25.5817 15.5817 22 20 22C24.4183 22 28 25.5817 28 30" stroke="#667eea" strokeWidth="2" strokeLinecap="round"/>
+              </svg>
             </div>
-          )}
+            {showProfileDropdown && (
+              <div className="dashboard-profile-dropdown">
+                <div className="dashboard-profile-info">
+                  <div className="dashboard-profile-email">
+                    {(() => {
+                      const name = localStorage.getItem('name');
+                      if (name) {
+                        return name.charAt(0).toUpperCase() + name.slice(1);
+                      }
+                      const email = localStorage.getItem('email');
+                      const userId = localStorage.getItem('user_id') || 'HR User';
+                      const base = email || userId;
+                      const namePart = base.includes('@') ? base.split('@')[0] : base;
+                      return namePart.charAt(0).toUpperCase() + namePart.slice(1);
+                    })()}
+                  </div>
+                  <div className="dashboard-profile-role">Role: HR</div>
+                </div>
+                <div className="dashboard-profile-divider"></div>
+                <button 
+                  className="dashboard-profile-menu-item" 
+                  onClick={() => { setShowProfileDropdown(false); setActivePage('profile'); }}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                    <circle cx="12" cy="7" r="4"/>
+                  </svg>
+                  My Profile
+                </button>
+                <div className="dashboard-profile-divider"></div>
+                <button className="dashboard-profile-logout" onClick={handleLogout}>
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                    <path d="M3 1a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1H3zm7.5 10.5v2H3v-12h7.5v2h1v-2.5a.5.5 0 0 0-.5-.5H3a.5.5 0 0 0-.5.5v13a.5.5 0 0 0 .5.5h8a.5.5 0 0 0 .5-.5v-2.5h-1z"/>
+                    <path d="M15.854 8.354a.5.5 0 0 0 0-.708l-3-3a.5.5 0 0 0-.708.708L14.293 7.5H6.5a.5.5 0 0 0 0 1h7.793l-2.147 2.146a.5.5 0 0 0 .708.708l3-3z"/>
+                  </svg>
+                  Logout
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
       <div className="dashboard-container">
@@ -898,53 +920,6 @@ function HrDashboard() {
                 <span className="coming-soon-badge">Coming Soon</span>
               </span>
             </div>
-            {/* Only show job history details if a job is selected */}
-
-            {selectedHistoryJob && (
-              <div className="drawer-section">
-                <div className="drawer-section-title">Candidates for: {selectedHistoryJob.title}</div>
-                <div className="drawer-candidates-list">
-                  {historyJobCandidates.length === 0 ? (
-                    <div className="drawer-empty">No candidates applied yet.</div>
-                  ) : (
-                    <table className="drawer-table">
-                      <thead>
-                        <tr>
-                          <th>Name</th>
-                          <th>Score</th>
-                          <th>Status</th>
-                          <th>Decision</th>
-                          <th>Applied</th>
-                          <th>Resume</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {historyJobCandidates.map((c) => {
-                          const name = c.candidate_name || (c.candidate_email ? c.candidate_email.split('@')[0] : 'Candidate');
-                          const prettyName = name.charAt(0).toUpperCase() + name.slice(1);
-                          const score = c.match_score != null ? `${(c.match_score * 100).toFixed(1)}%` : '—';
-                          const appliedAt = c.applied_at ? new Date(c.applied_at).toLocaleString() : '—';
-                          return (
-                            <tr key={c.application_id || c.resume_id}>
-                              <td>{prettyName}</td>
-                              <td>{score}</td>
-                              <td>{c.status || 'applied'}</td>
-                              <td>{c.decision || 'pending'}</td>
-                              <td>{appliedAt}</td>
-                              <td>
-                                {c.file_url ? (
-                                  <button className="dashboard-btn-secondary" style={{ padding: '0.3rem 0.8rem' }} onClick={() => handleViewResume(c.file_url)}>Open</button>
-                                ) : '—'}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  )}
-                </div>
-              </div>
-            )}
           </div>
         </div>
       )}
@@ -1600,7 +1575,7 @@ function HrDashboard() {
                 <label className="toggle-switch">
                   <input type="checkbox" defaultChecked />
                   <span className="toggle-slider"></span>
-                </label>
+                               </label>
               </div>
             </div>
           </div>
@@ -1610,11 +1585,9 @@ function HrDashboard() {
             <h3 className="settings-section-title">Account Security</h3>
             <div className="settings-options">
               <button className="settings-action-btn" onClick={handleChangePassword}>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-                  <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M12 17a2 2 0 100-4 2 2 0 000 4zm6-7V7a6 6 0 10-12 0v3a2 2 0 00-2 2v7a2 2 0 002 2h12a2 2 0 002-2v-7a2 2 0 00-2-2zm-8-3a4 4 0 118 0v3H6V7zm10 12a1 1 0 01-1 1H7a1 1 0 01-1-1v-7a1 1 0 011-1h10a1 1 0 011 1v7z" fill="#2563eb"/>
                 </svg>
-                Change Password
               </button>
               <p className="settings-help-text">Update your password to keep your account secure</p>
             </div>
@@ -1717,7 +1690,7 @@ function HrDashboard() {
                   </div>
                   <div className="contact-method">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0ea5e9" strokeWidth="2">
-                      <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
+                      <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a.5.5 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
                     </svg>
                     <span>+1 (555) 123-4567</span>
                   </div>
@@ -1827,6 +1800,23 @@ function HrDashboard() {
               <button className="modal-btn primary" onClick={handlePasswordSubmit}>
                 Change Password
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Browser-style Alert Modal */}
+      {showAlertModal && (
+        <div className="modal-overlay" onClick={() => setShowAlertModal(false)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: 380, borderRadius: 12, boxShadow: '0 8px 32px rgba(0,0,0,0.18)', background: 'var(--card-bg, #fff)', color: 'var(--font-color, #222)', padding: 0 }}>
+            <div className="modal-header" style={{ padding: '1.2rem 1.5rem 0.7rem 1.5rem', borderBottom: '1px solid #e5e7eb', fontWeight: 600, fontSize: 17 }}>
+              localhost says:
+            </div>
+            <div className="modal-body" style={{ padding: '1.5rem', fontSize: 16, color: 'inherit' }}>
+              {alertMessage}
+            </div>
+            <div className="modal-footer" style={{ padding: '0.7rem 1.5rem 1.2rem 1.5rem', textAlign: 'right', borderTop: '1px solid #e5e7eb' }}>
+              <button className="modal-btn primary" style={{ minWidth: 80 }} onClick={() => setShowAlertModal(false)}>OK</button>
             </div>
           </div>
         </div>

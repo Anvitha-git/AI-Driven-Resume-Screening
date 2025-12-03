@@ -5,6 +5,19 @@ import { useNavigate } from 'react-router-dom';
 import './Dashboard.css';
 
 function CandidateDashboard() {
+        const [showAlertModal, setShowAlertModal] = useState(false);
+        const [alertMessage, setAlertMessage] = useState('');
+      // Modal state for browser-style alert
+
+      // To show the modal, call:
+      // setAlertMessage('Your message here'); setShowAlertModal(true);
+    // Theme toggle handler
+    const handleThemeToggle = () => {
+      const newTheme = theme === 'light' ? 'dark' : 'light';
+      setTheme(newTheme);
+      localStorage.setItem('theme', newTheme);
+      document.documentElement.setAttribute('data-theme', newTheme);
+    };
   // Drawer state
   const [showSideDrawer, setShowSideDrawer] = useState(false);
   const [activePage, setActivePage] = useState('jobs'); // 'jobs', 'history', 'notifications', 'profile', 'resources', 'settings', 'help'
@@ -29,6 +42,9 @@ function CandidateDashboard() {
     statusUpdates: true,
     jobAlerts: true
   });
+  
+  // Theme state
+  const [theme, setTheme] = useState(localStorage.getItem('theme') || 'light');
   
   // Auth helpers
   const getAccessToken = () => localStorage.getItem('access_token') || localStorage.getItem('token');
@@ -94,6 +110,7 @@ function CandidateDashboard() {
   const [notifications, setNotifications] = useState([]);
   const [uploadingJob, setUploadingJob] = useState(null);
   const [showNotifDropdown, setShowNotifDropdown] = useState(false);
+  const [unreadNotifCount, setUnreadNotifCount] = useState(0);
 
   // Close dropdowns when clicking outside
 
@@ -115,6 +132,13 @@ function CandidateDashboard() {
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [showNotifDropdown, showProfileDropdown]);
+
+  // Reset unread count when notifications are viewed
+  useEffect(() => {
+    if (showNotifDropdown) {
+      setUnreadNotifCount(0);
+    }
+  }, [showNotifDropdown]);
 
   // Notification preferences loader - define before use to satisfy ESLint
   const loadNotificationPreferences = useCallback(async () => {
@@ -159,7 +183,7 @@ function CandidateDashboard() {
       setJobs(res.data || []);
     }).catch((err) => {
       console.error('Error fetching jobs:', err);
-      alert('Failed to load jobs');
+      setAlertMessage('Failed to load jobs'); setShowAlertModal(true);
     });
 
     // Fetch user's applications
@@ -174,7 +198,7 @@ function CandidateDashboard() {
       setApplications(res.data || []);
     }).catch((err) => {
       console.error('Error fetching applications:', err);
-      alert('Failed to load applications. Please try again.');
+      setAlertMessage('Failed to load applications. Please try again.'); setShowAlertModal(true);
     });
 
     // Fetch notifications
@@ -183,6 +207,9 @@ function CandidateDashboard() {
         headers: { Authorization: `Bearer ${token}` },
       });
       setNotifications(res.data || []);
+      if (res.data && res.data.length > 0) {
+        setUnreadNotifCount(res.data.length);
+      }
     }).catch((err) => console.error('Error fetching notifications:', err));
 
 
@@ -222,7 +249,7 @@ const hasOpenApplication = () => {
   const handleUpload = async (jd_id) => {
     // Check if already applied
     if (hasAlreadyApplied(jd_id)) {
-      alert('You have already applied to this job.');
+      setAlertMessage('You have already applied to this job.'); setShowAlertModal(true);
       return;
     }
   const usedToken = getAccessToken();
@@ -234,13 +261,13 @@ const hasOpenApplication = () => {
     console.log('User ID:', localStorage.getItem('user_id'));
     console.log('==================');
     if (!usedToken) {
-      alert('No token found. Please login again.');
+      setAlertMessage('No token found. Please login again.'); setShowAlertModal(true);
       navigate('/login');
       return;
     }
     const file = selectedFiles[jd_id];
     if (!file) {
-      alert('Please select a file first.');
+      setAlertMessage('Please select a file first.'); setShowAlertModal(true);
       return;
     }
     setUploadingJob(jd_id);
@@ -262,7 +289,7 @@ const hasOpenApplication = () => {
         )
       ));
       console.log('Upload successful:', resp.data);
-      alert('Resume uploaded successfully! ' + (resp.data.insights || ''));
+      setAlertMessage('Resume uploaded successfully! ' + (resp.data.insights || '')); setShowAlertModal(true);
       
       // Store jd_id and user_id for chatbot
       const userId = localStorage.getItem('user_id');
@@ -283,9 +310,9 @@ const hasOpenApplication = () => {
     } catch (error) {
       console.error('Upload error:', error);
       if (!error.response) {
-        alert('Upload failed: Network error. Check backend connection.');
+        setAlertMessage('Upload failed: Network error. Check backend connection.'); setShowAlertModal(true);
       } else {
-        alert('Upload failed: ' + (error.response.data?.detail || error.message));
+        setAlertMessage('Upload failed: ' + (error.response.data?.detail || error.message)); setShowAlertModal(true);
       }
     } finally {
       setUploadingJob(null);
@@ -327,7 +354,7 @@ const hasOpenApplication = () => {
       localStorage.setItem('name', newName.trim());
       setShowEditNameModal(false);
       setNameError('');
-      alert('Name updated successfully!');
+      setAlertMessage('Name updated successfully!'); setShowAlertModal(true);
     } catch (error) {
       console.error('Error updating name:', error);
       setNameError(error.response?.data?.detail || 'Failed to update name');
@@ -362,15 +389,15 @@ const hasOpenApplication = () => {
 
   const handlePasswordSubmit = async () => {
     if (!passwordData.current || !passwordData.new || !passwordData.confirm) {
-      alert('Please fill in all password fields');
+      setAlertMessage('Please fill in all password fields'); setShowAlertModal(true);
       return;
     }
     if (passwordData.new !== passwordData.confirm) {
-      alert('New passwords do not match');
+      setAlertMessage('New passwords do not match'); setShowAlertModal(true);
       return;
     }
     if (passwordData.new.length < 6) {
-      alert('Password must be at least 6 characters long');
+      setAlertMessage('Password must be at least 6 characters long'); setShowAlertModal(true);
       return;
     }
     
@@ -384,18 +411,18 @@ const hasOpenApplication = () => {
         headers: { Authorization: `Bearer ${token}` }
       });
       
-      alert('Password changed successfully!');
+      setAlertMessage('Password changed successfully!'); setShowAlertModal(true);
       setShowPasswordModal(false);
       setPasswordData({ current: '', new: '', confirm: '' });
     } catch (error) {
       if (error.response?.status === 401) {
-        alert('Current password is incorrect');
+        setAlertMessage('Current password is incorrect'); setShowAlertModal(true);
       } else if (error.response?.status === 404) {
-        alert('Password change feature coming soon! Your request has been noted.');
+        setAlertMessage('Password change feature coming soon! Your request has been noted.'); setShowAlertModal(true);
         setShowPasswordModal(false);
         setPasswordData({ current: '', new: '', confirm: '' });
       } else {
-        alert('Error changing password. Please try again later.');
+        setAlertMessage('Error changing password. Please try again later.'); setShowAlertModal(true);
       }
     }
   };
@@ -407,7 +434,7 @@ const hasOpenApplication = () => {
 
   const handleSupportSubmit = async () => {
     if (!supportMessage.trim()) {
-      alert('Please enter a message');
+      setAlertMessage('Please enter a message'); setShowAlertModal(true);
       return;
     }
     
@@ -423,12 +450,12 @@ const hasOpenApplication = () => {
         timestamp: new Date().toISOString()
       });
       
-      alert('Thank you for contacting us! Our support team will get back to you within 24 hours.');
+      setAlertMessage('Thank you for contacting us! Our support team will get back to you within 24 hours.'); setShowAlertModal(true);
       setShowSupportModal(false);
       setSupportMessage('');
     } catch (error) {
       console.error('Error sending message:', error);
-      alert('Error sending message. Please try again or email us directly at airesumescreening@gmail.com');
+      setAlertMessage('Error sending message. Please try again or email us directly at airesumescreening@gmail.com'); setShowAlertModal(true);
     }
   };
 
@@ -438,7 +465,7 @@ const hasOpenApplication = () => {
 
   const handleBugSubmit = async () => {
     if (!bugDescription.trim()) {
-      alert('Please describe the issue');
+      setAlertMessage('Please describe the issue'); setShowAlertModal(true);
       return;
     }
     
@@ -455,12 +482,12 @@ const hasOpenApplication = () => {
         page: activePage
       });
       
-      alert('Thank you for reporting this issue! Our team will investigate it promptly.');
+      setAlertMessage('Thank you for reporting this issue! Our team will investigate it promptly.'); setShowAlertModal(true);
       setShowBugReportModal(false);
       setBugDescription('');
     } catch (error) {
       console.error('Error reporting bug:', error);
-      alert('Error submitting bug report. Please try again.');
+      setAlertMessage('Error submitting bug report. Please try again.'); setShowAlertModal(true);
     }
   };
 
@@ -543,61 +570,78 @@ const hasOpenApplication = () => {
     }
     // Default
     return { label: statusRaw || 'Submitted', className: 'status-submitted' };
-  }  return (
+  }
+
+  // ...existing code...
+
+  // Fix: Only render the label, not the object, in application status rendering
+  // Find all usages of getApplicationStatusMeta and ensure only .label is rendered
+
+  return (
     <div className="dashboard-root">
       <div className="dashboard-header">
         <div className="dashboard-header-left">
-          {/* Hamburger */}
-          <div className="dashboard-hamburger" onClick={() => setShowSideDrawer(true)} title="Menu">
-            <div className="hamburger-line" />
-            <div className="hamburger-line" />
-            <div className="hamburger-line" />
-          </div>
+          <button
+            className="dashboard-hamburger"
+            onClick={() => setShowSideDrawer(true)}
+            aria-label="Open Menu"
+          >
+            <span className="hamburger-line"></span>
+            <span className="hamburger-line"></span>
+            <span className="hamburger-line"></span>
+          </button>
           <div>
             <h1 className="dashboard-title">Candidate Dashboard</h1>
-            <div className="welcome-banner" style={{ fontSize: '1.1rem', fontWeight: 500, marginTop: 4 }}>
-              Welcome, {(() => {
-                const name = localStorage.getItem('name');
-                if (name) {
-                  return name.charAt(0).toUpperCase() + name.slice(1);
-                }
-                const email = localStorage.getItem('email');
-                const userId = localStorage.getItem('user_id') || 'Candidate';
-                const base = email || userId;
-                const namePart = base.includes('@') ? base.split('@')[0] : base;
-                return namePart.charAt(0).toUpperCase() + namePart.slice(1);
-              })()}
-            </div>
           </div>
         </div>
-        <div className="dashboard-header-actions">
-          {/* Notifications Bell */}
-          <div
-            className="dashboard-bell-container"
-            onClick={() => {
-              // Mark all as read and toggle dropdown
-              setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
-              setShowNotifDropdown((prev) => !prev);
-            }}
-            title="Notifications"
-          >
-            <svg
-              className="dashboard-bell-icon"
-              width="28"
-              height="28"
-              viewBox="0 0 24 24"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <path d="M12 22c1.1 0 2-.9 2-2h-4a2 2 0 002 2z" fill="white" opacity="0.9"/>
-              <path d="M18 16v-5a6 6 0 10-12 0v5l-2 2v1h16v-1l-2-2z" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <div className="dashboard-bell-container" onClick={() => setShowNotifDropdown(!showNotifDropdown)}>
+            <svg className="dashboard-bell-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
+              <path d="M13.73 21a2 2 0 01-3.46 0" />
             </svg>
-            {notifications.filter((n) => !n.read).length > 0 && (
-              <span className="dashboard-bell-badge">{notifications.filter((n) => !n.read).length}</span>
+            {unreadNotifCount > 0 && (
+              <span className="dashboard-bell-badge">{unreadNotifCount}</span>
+            )}
+            {/* Notifications Dropdown */}
+            {showNotifDropdown && (
+              <div className="dashboard-notifications-dropdown">
+                <div className="dashboard-notifications-header">Notifications</div>
+                {notifications && notifications.length > 0 ? (
+                  <div className="dashboard-notifications-list">
+                    {notifications.map((n, idx) => (
+                      <div className="dashboard-notification-item" key={n.id || n.notification_id || idx}>
+                        <div className={`dashboard-notification-icon ${
+                          n.type === 'selected' ? 'notif-selected' :
+                          n.type === 'rejected' ? 'notif-rejected' :
+                          n.type === 'pending' ? 'notif-pending' :
+                          n.type === 'new_job' ? 'notif-new-job' : 'notif-generic'}`}></div>
+                        <div className="dashboard-notification-content">
+                          <div className="dashboard-notification-text">{n.message || n.text || n.title || 'Notification'}</div>
+                          {n.created_at && (
+                            <div className="dashboard-notification-time">{formatDateSafe(n.created_at)}</div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="dashboard-notification-empty">No notifications</div>
+                )}
+              </div>
             )}
           </div>
-
-          {/* Profile */}
+          <button
+            aria-label="Toggle theme"
+            onClick={handleThemeToggle}
+            className="theme-toggle-btn"
+          >
+            {theme === 'light' ? (
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+            ) : (
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1111.21 3a7 7 0 109.79 9.79z"/></svg>
+            )}
+          </button>
           <div className="dashboard-profile-container">
             <div 
               className="dashboard-profile-icon" 
@@ -649,34 +693,6 @@ const hasOpenApplication = () => {
               </div>
             )}
           </div>
-
-          {/* Notifications Dropdown */}
-          {showNotifDropdown && (
-            <div className="dashboard-notifications-dropdown">
-              <div className="dashboard-notifications-header">Notifications</div>
-              {notifications && notifications.length > 0 ? (
-                <div className="dashboard-notifications-list">
-                  {notifications.map((n, idx) => (
-                    <div className="dashboard-notification-item" key={n.id || n.notification_id || idx}>
-                      <div className={`dashboard-notification-icon ${
-                        n.type === 'selected' ? 'notif-selected' :
-                        n.type === 'rejected' ? 'notif-rejected' :
-                        n.type === 'pending' ? 'notif-pending' :
-                        n.type === 'new_job' ? 'notif-new-job' : 'notif-generic'}`}></div>
-                      <div className="dashboard-notification-content">
-                        <div className="dashboard-notification-text">{n.message || n.text || n.title || 'Notification'}</div>
-                        {n.created_at && (
-                          <div className="dashboard-notification-time">{formatDateSafe(n.created_at)}</div>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="dashboard-notification-empty">No notifications</div>
-              )}
-            </div>
-          )}
         </div>
       </div>
 
@@ -690,38 +706,37 @@ const hasOpenApplication = () => {
             </div>
             <div className="drawer-nav">
               <span className="drawer-nav-link" onClick={() => { setShowSideDrawer(false); setActivePage('jobs'); }}>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{marginRight: '8px'}}>
                   <rect x="2" y="7" width="20" height="14" rx="2" ry="2"/>
                   <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>
                 </svg>
                 Job Postings
               </span>
               <span className="drawer-nav-link" onClick={() => { setShowSideDrawer(false); setActivePage('history'); }}>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{marginRight: '8px'}}>
                   <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
                   <polyline points="14 2 14 8 20 8"/>
                   <line x1="16" y1="13" x2="8" y2="13"/>
                   <line x1="16" y1="17" x2="8" y2="17"/>
-                  <polyline points="10 9 9 9 8 9"/>
                 </svg>
                 My Applications
               </span>
               <span className="drawer-nav-link" onClick={() => { setShowSideDrawer(false); setActivePage('resources'); }}>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{marginRight: '8px'}}>
                   <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
                   <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
                 </svg>
                 Career Resources
               </span>
               <span className="drawer-nav-link" onClick={() => { setShowSideDrawer(false); setActivePage('settings'); }}>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{marginRight: '8px'}}>
                   <circle cx="12" cy="12" r="3"/>
-                  <path d="M12 1v6m0 6v6m-8-8h6m6 0h6m-14.485-5.515l4.243 4.243m6.364 0l4.242-4.243M6.343 17.657l4.243-4.243m6.364 0l4.242 4.243"/>
+                  <path d="M12 1v6m0 6v6M5.64 5.64l4.24 4.24m4.24 4.24l4.24 4.24M1 12h6m6 0h6M5.64 18.36l4.24-4.24m4.24-4.24l4.24-4.24"/>
                 </svg>
                 Settings
               </span>
               <span className="drawer-nav-link" onClick={() => { setShowSideDrawer(false); setActivePage('help'); }}>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{marginRight: '8px'}}>
                   <circle cx="12" cy="12" r="10"/>
                   <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
                   <line x1="12" y1="17" x2="12.01" y2="17"/>
@@ -946,25 +961,7 @@ const hasOpenApplication = () => {
               </div>
             </div>
 
-            {/* Resume Upload */}
-            <div className="profile-section">
-              <h3 className="profile-section-title">Resume Management</h3>
-              <div className="profile-resume-upload">
-                <p style={{ color: '#6b7280', marginBottom: '1rem' }}>
-                  You can upload a new resume when applying for jobs. Your latest resume will be used for applications.
-                </p>
-                <div style={{ padding: '1.5rem', background: '#f0f9ff', borderRadius: '12px', border: '2px dashed #0ea5e9' }}>
-                  <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#0ea5e9" strokeWidth="2" style={{ margin: '0 auto 1rem', display: 'block' }}>
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                    <polyline points="17 8 12 3 7 8"/>
-                    <line x1="12" y1="3" x2="12" y2="15"/>
-                  </svg>
-                  <p style={{ textAlign: 'center', color: '#0ea5e9', fontWeight: '600' }}>
-                    Upload your resume when applying for jobs
-                  </p>
-                </div>
-              </div>
-            </div>
+            {/* Removed non-functional Resume Management tile */}
 
             {/* Account Info */}
             <div className="profile-section">
@@ -1268,16 +1265,11 @@ const hasOpenApplication = () => {
                   </p>
                   <div className="contact-methods">
                     <div className="contact-method">
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0ea5e9" strokeWidth="2">
-                        <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
-                        <polyline points="22,6 12,13 2,6"/>
-                      </svg>
+                      <span style={{marginRight: '8px'}} role="img" aria-label="Email">✉️</span>
                       <span>airesumescreening@gmail.com</span>
                     </div>
                     <div className="contact-method">
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0ea5e9" strokeWidth="2">
-                        <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a.5.5 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
-                      </svg>
+                      <span style={{marginRight: '8px'}} role="img" aria-label="Phone">📞</span>
                       <span>+1 (555) 123-4567</span>
                     </div>
                   </div>
@@ -1295,11 +1287,7 @@ const hasOpenApplication = () => {
                 Found a technical issue? Let us know so we can fix it quickly.
               </p>
               <button className="settings-action-btn secondary" onClick={handleReportBug}>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <circle cx="12" cy="12" r="10"/>
-                  <line x1="12" y1="8" x2="12" y2="12"/>
-                  <line x1="12" y1="16" x2="12.01" y2="16"/>
-                </svg>
+                <span style={{marginRight: '8px'}} role="img" aria-label="Bug">🐞</span>
                 Report an Issue
               </button>
             </div>
@@ -1460,6 +1448,24 @@ const hasOpenApplication = () => {
                 <button className="modal-btn primary" onClick={handleNameSubmit}>
                   Save
                 </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Alert Modal */}
+        {showAlertModal && (
+          <div className="modal-overlay" onClick={() => setShowAlertModal(false)}>
+            <div className="modal-content" onClick={e => e.stopPropagation()}>
+              <div className="modal-header">
+                <h3>Action Required</h3>
+                <button className="modal-close" onClick={() => setShowAlertModal(false)}>×</button>
+              </div>
+              <div className="modal-body">
+                <p>{alertMessage}</p>
+              </div>
+              <div className="modal-footer">
+                <button className="modal-btn primary" onClick={() => setShowAlertModal(false)}>OK</button>
               </div>
             </div>
           </div>
