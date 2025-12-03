@@ -38,7 +38,12 @@ function PreventAuth({ children, allowIfLoggedIn = false }) {
 
 
 
+
 function App() {
+  React.useEffect(() => {
+    const theme = localStorage.getItem('theme') || 'light';
+    document.documentElement.setAttribute('data-theme', theme);
+  }, []);
   return (
     <Router>
       <Routes>

@@ -1,0 +1,22 @@
+/* Theme variables for light and dark mode */
+:root {
+  --header-bg: linear-gradient(135deg, #223a5f 0%, #38475a 100%);
+  --header-color: #fff;
+  --body-bg: linear-gradient(135deg, #f5f7fa 0%, #eef2f7 100%);
+  --card-bg: #fff;
+  --font-color: #222;
+  --table-header-bg: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+  --table-header-color: #1f2937;
+  --table-row-hover: #f8fafc;
+}
+
+[data-theme='dark'] {
+  --header-bg: linear-gradient(135deg, #181c24 0%, #232a36 100%);
+  --header-color: #fff;
+  --body-bg: linear-gradient(135deg, #181c24 0%, #232a36 100%);
+  --card-bg: #232a36;
+  --font-color: #f3f4f6;
+  --table-header-bg: linear-gradient(135deg, #232a36 0%, #181c24 100%);
+  --table-header-color: #f3f4f6;
+  --table-row-hover: #232a36;
+}
