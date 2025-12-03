@@ -422,7 +422,7 @@ def rank_resumes(resumes, jd_requirements, weights=None):
     return scores
 
 
-def explain_ranking_with_lime(resume_text, jd_requirements, resume_data, num_features=15):
+def explain_ranking_with_lime(resume_text, jd_requirements, resume_data, num_features=15, use_actual_score=False, actual_score=None):
     """
     Generate LIME explanation for why a resume received its ranking score.
     
@@ -431,10 +431,11 @@ def explain_ranking_with_lime(resume_text, jd_requirements, resume_data, num_fea
         jd_requirements: List of job requirement strings
         resume_data: Dict containing skills, experience, education from the resume
         num_features: Number of top features to show in explanation (default: 15)
+        use_actual_score: If True, use the provided actual_score instead of recalculating
+        actual_score: The actual ranking score from the database (0-1 range)
     
     Returns:
         Dictionary containing:
-        - overall_score: The final ranking score (0-1)
         - score_breakdown: Dict with component scores (skills, semantic, experience, education)
         - lime_explanation: List of (word/phrase, importance_weight) tuples
         - top_positive_words: Words that boosted the score
@@ -532,13 +533,18 @@ def explain_ranking_with_lime(resume_text, jd_requirements, resume_data, num_fea
     
     # Final weighted score
     weights = {"skills": 0.45, "semantic": 0.30, "experience": 0.20, "education": 0.05}
-    overall_score = (
-        weights["skills"] * skill_score +
-        weights["semantic"] * semantic_score +
-        weights["experience"] * experience_score +
-        weights["education"] * education_score
-    )
-    overall_score = max(0.0, min(1.0, overall_score))
+    
+    # Use actual score from ranking if provided, otherwise calculate
+    if use_actual_score and actual_score is not None:
+        overall_score = actual_score  # Already in 0-1 range
+    else:
+        overall_score = (
+            weights["skills"] * skill_score +
+            weights["semantic"] * semantic_score +
+            weights["experience"] * experience_score +
+            weights["education"] * education_score
+        )
+        overall_score = max(0.0, min(1.0, overall_score))
     
     # LIME Text Explanation
     # Create a simple predictor function for LIME
@@ -592,7 +598,6 @@ def explain_ranking_with_lime(resume_text, jd_requirements, resume_data, num_fea
         negative_words = []
     
     return {
-        "overall_score": round(overall_score * 100, 2),  # Convert to percentage
         "score_breakdown": {
             "skill_match": {
                 "score": round(skill_score * 100, 2),
@@ -623,11 +628,5 @@ def explain_ranking_with_lime(resume_text, jd_requirements, resume_data, num_fea
         "top_positive_words": positive_words[:10],
         "top_negative_words": negative_words[:10],
         "matched_skills": list(exact_matches),
-        "missing_skills": missing_skills[:10],
-        "interpretation": {
-            "summary": f"This resume scored {round(overall_score * 100, 1)}% overall.",
-            "strengths": [],
-            "weaknesses": [],
-            "recommendations": []
-        }
+        "missing_skills": missing_skills[:10]
     }

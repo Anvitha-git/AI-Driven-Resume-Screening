@@ -73,11 +73,96 @@ class Decision(BaseModel):
 class UpdateNameRequest(BaseModel):
     name: str
 
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
+
 class UserPreferences(BaseModel):
     email_notifications: bool = True
     status_updates: bool = True
     job_alerts: bool = True
 
+# Preferences endpoints
+@app.get("/preferences")
+async def get_preferences(token: str = Depends(oauth2_scheme)):
+    try:
+        # Resolve user from token
+        res = supabase_auth.auth.get_user(token)
+        user = res.user
+        user_id = user.id
+        prefs = {
+            "email_notifications": True,
+            "status_updates": True,
+            "job_alerts": True,
+        }
+
+        # Try user_profiles first
+        try:
+            resp = supabase_service.table("user_profiles").select("email_notifications,status_updates,job_alerts").eq("user_id", user_id).limit(1).execute()
+            rows = getattr(resp, "data", []) or resp.get("data", [])
+            if rows:
+                row = rows[0]
+                prefs["email_notifications"] = bool(row.get("email_notifications", prefs["email_notifications"]))
+                prefs["status_updates"] = bool(row.get("status_updates", prefs["status_updates"]))
+                prefs["job_alerts"] = bool(row.get("job_alerts", prefs["job_alerts"]))
+        except Exception as e:
+            logging.warning(f"[PREFERENCES] user_profiles read failed: {e}")
+
+        # Fallback to users table
+        try:
+            resp2 = supabase_service.table("users").select("email_notifications,status_updates,job_alerts").eq("user_id", user_id).limit(1).execute()
+            rows2 = getattr(resp2, "data", []) or resp2.get("data", [])
+            if rows2:
+                row2 = rows2[0]
+                prefs["email_notifications"] = bool(row2.get("email_notifications", prefs["email_notifications"]))
+                prefs["status_updates"] = bool(row2.get("status_updates", prefs["status_updates"]))
+                prefs["job_alerts"] = bool(row2.get("job_alerts", prefs["job_alerts"]))
+        except Exception as e:
+            logging.warning(f"[PREFERENCES] users read failed: {e}")
+
+        return prefs
+    except Exception as e:
+        logging.exception("[PREFERENCES] get failed")
+        raise HTTPException(status_code=500, detail=f"Failed to load preferences: {str(e)}")
+
+@app.put("/preferences")
+async def set_preferences(prefs: UserPreferences, token: str = Depends(oauth2_scheme)):
+    try:
+        # Resolve user from token
+        res = supabase_auth.auth.get_user(token)
+        user = res.user
+        user_id = user.id
+        payload = {
+            "email_notifications": prefs.email_notifications,
+            "status_updates": prefs.status_updates,
+            "job_alerts": prefs.job_alerts,
+        }
+
+        updated = False
+        try:
+            resp = supabase_service.table("user_profiles").update(payload).eq("user_id", user_id).execute()
+            updated = True
+        except Exception as e:
+            logging.warning(f"[PREFERENCES] user_profiles update failed: {e}")
+
+        try:
+            supabase_service.table("users").update(payload).eq("user_id", user_id).execute()
+            updated = True
+        except Exception as e:
+            logging.warning(f"[PREFERENCES] users update failed: {e}")
+
+        if not updated:
+            # Try insert into user_profiles if missing
+            try:
+                supabase_service.table("user_profiles").insert({"user_id": user_id, **payload}).execute()
+                updated = True
+            except Exception:
+                pass
+
+        return {"message": "Preferences updated", **payload}
+    except Exception as e:
+        logging.exception("[PREFERENCES] set failed")
+        raise HTTPException(status_code=500, detail=f"Failed to update preferences: {str(e)}")
 # Helpers
 def _signed_url_for(file_url: Optional[str]) -> Optional[str]:
     """Create a public URL for a stored object.
@@ -272,6 +357,58 @@ async def update_name(request: UpdateNameRequest, token: str = Depends(oauth2_sc
     except Exception as e:
         logging.exception(f"Error updating name for user")
         raise HTTPException(status_code=500, detail=f"Failed to update name: {str(e)}")
+
+@app.post("/change-password")
+async def change_password(request: ChangePasswordRequest, token: str = Depends(oauth2_scheme)):
+    try:
+        # Get current user
+        res = supabase_auth.auth.get_user(token)
+        user = res.user
+        user_id = user.id
+        user_email = user.email
+        
+        logging.info(f"Password change request for user {user_id}")
+        
+        # Verify current password by attempting to sign in
+        try:
+            sign_in_response = supabase_auth.auth.sign_in_with_password({
+                "email": user_email,
+                "password": request.current_password
+            })
+            if not sign_in_response.user:
+                raise HTTPException(status_code=401, detail="Current password is incorrect")
+        except Exception as auth_error:
+            logging.error(f"Current password verification failed: {auth_error}")
+            raise HTTPException(status_code=401, detail="Current password is incorrect")
+        
+        # Validate new password
+        if len(request.new_password) < 6:
+            raise HTTPException(status_code=400, detail="New password must be at least 6 characters")
+        
+        # Update password using Supabase Auth API
+        auth_headers = {
+            "apikey": SUPABASE_ANON_KEY,
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json"
+        }
+        auth_url = f"{SUPABASE_URL}/auth/v1/user"
+        auth_response = requests.put(
+            auth_url,
+            headers=auth_headers,
+            json={"password": request.new_password}
+        )
+        
+        if auth_response.status_code not in [200, 201]:
+            logging.error(f"Failed to update password: {auth_response.text}")
+            raise HTTPException(status_code=500, detail="Failed to update password")
+        
+        logging.info(f"Password updated successfully for user {user_id}")
+        return {"message": "Password changed successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.exception(f"Error changing password")
+        raise HTTPException(status_code=500, detail=f"Failed to change password: {str(e)}")
 
 @app.post("/refresh")
 async def refresh_token_endpoint(body: RefreshRequest):
@@ -1059,7 +1196,7 @@ async def explain_resume_ranking(resume_id: str, token: str = Depends(oauth2_sch
         
         logging.info(f"[EXPLAIN] Generating explanation for resume_id={resume_id} by user {user.id}")
         
-        # Fetch the resume
+        # Fetch the resume - get match_score from applications table
         resume_resp = (
             supabase_service
             .table("resumes")
@@ -1072,6 +1209,22 @@ async def explain_resume_ranking(resume_id: str, token: str = Depends(oauth2_sch
             raise HTTPException(status_code=404, detail="Resume not found")
         
         resume = resume_resp.data[0]
+        
+        # Get the actual match_score used for ranking from applications table
+        app_resp = (
+            supabase_service
+            .table("applications")
+            .select("match_score")
+            .eq("resume_id", resume_id)
+            .execute()
+        )
+        
+        # Use the match_score from ranking, fallback to resume score
+        actual_match_score = None
+        if app_resp.data and len(app_resp.data) > 0:
+            actual_match_score = app_resp.data[0].get("match_score")
+        if actual_match_score is None:
+            actual_match_score = resume.get("score", 0.0)
         
         # Fetch the associated job description
         jd_resp = (
@@ -1092,7 +1245,7 @@ async def explain_resume_ranking(resume_id: str, token: str = Depends(oauth2_sch
         if isinstance(jd_requirements, str):
             jd_requirements = [jd_requirements]
         
-        # Generate LIME explanation
+        # Generate LIME explanation (without recalculating score)
         from ai_processor import explain_ranking_with_lime
         
         explanation = explain_ranking_with_lime(
@@ -1103,7 +1256,9 @@ async def explain_resume_ranking(resume_id: str, token: str = Depends(oauth2_sch
                 "experience": resume.get("experience", []),
                 "education": resume.get("education", [])
             },
-            num_features=15
+            num_features=15,
+            use_actual_score=True,
+            actual_score=actual_match_score  # Pass the ranking score
         )
         
         # Add metadata
@@ -1111,8 +1266,8 @@ async def explain_resume_ranking(resume_id: str, token: str = Depends(oauth2_sch
         explanation["candidate_name"] = resume.get("user_id", "Unknown")
         explanation["job_title"] = jd.get("title", "Unknown Position")
         
-        # Generate human-readable interpretation
-        score = explanation["overall_score"]
+        # Generate human-readable interpretation using the actual ranking score
+        score = actual_match_score * 100  # Convert to percentage
         breakdown = explanation["score_breakdown"]
         
         strengths = []
@@ -1148,15 +1303,18 @@ async def explain_resume_ranking(resume_id: str, token: str = Depends(oauth2_sch
             recommendations.append("🔴 WEAK CANDIDATE: May not meet requirements")
         
         explanation["interpretation"] = {
-            "summary": f"This resume scored {score}% overall. " + 
-                      f"Skill match contributed {breakdown['skill_match']['contribution']}%, " +
-                      f"semantic relevance {breakdown['semantic_similarity']['contribution']}%.",
+            "summary": f"This resume scored {score:.1f}% overall. " + 
+                      f"Skill match contributed {breakdown['skill_match']['contribution']:.1f}%, " +
+                      f"semantic relevance {breakdown['semantic_similarity']['contribution']:.1f}%.",
             "strengths": strengths,
             "weaknesses": weaknesses,
             "recommendations": recommendations
         }
         
-        logging.info(f"[EXPLAIN] Generated explanation for resume {resume_id}: {score}%")
+        # Add the actual match score used for ranking (not recalculated)
+        explanation["match_score"] = actual_match_score  # 0-1 range
+        
+        logging.info(f"[EXPLAIN] Generated explanation for resume {resume_id}: {score:.1f}%")
         
         return explanation
         
@@ -1165,3 +1323,49 @@ async def explain_resume_ranking(resume_id: str, token: str = Depends(oauth2_sch
     except Exception as e:
         logging.exception("Error generating explanation")
         raise HTTPException(status_code=500, detail=f"Failed to generate explanation: {str(e)}")
+
+
+@app.get("/get-resume-url/{resume_path:path}")
+async def get_resume_url(resume_path: str, user=Depends(get_current_user)):
+    """
+    Generate a signed URL for viewing a resume from Supabase storage.
+    This allows authenticated access to private bucket files.
+    """
+    try:
+        # Clean the path - remove any trailing slashes or query params
+        clean_path = resume_path.strip().rstrip('/').split('?')[0]
+        
+        logging.info(f"[RESUME URL] User {user.id} requesting signed URL for: {clean_path}")
+        
+        try:
+            # Generate a signed URL that expires in 1 hour (3600 seconds)
+            result = supabase_service.storage.from_('resumes').create_signed_url(clean_path, 3600)
+            
+            logging.info(f"[RESUME URL] Supabase result: {result}")
+            
+            # Check different possible response formats
+            signed_url = None
+            if isinstance(result, dict):
+                signed_url = result.get('signedURL') or result.get('signedUrl') or result.get('signed_url')
+            
+            if not signed_url:
+                logging.error(f"[RESUME URL] No signed URL in result: {result}")
+                raise HTTPException(status_code=404, detail="Could not generate signed URL for resume")
+            
+            logging.info(f"[RESUME URL] Successfully generated signed URL")
+            return {"signedUrl": signed_url}
+            
+        except Exception as storage_error:
+            logging.exception(f"[RESUME URL] Supabase storage error: {str(storage_error)}")
+            raise HTTPException(status_code=500, detail=f"Storage error: {str(storage_error)}")
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.exception(f"Error generating signed URL for {resume_path}")
+        raise HTTPException(status_code=500, detail=f"Failed to generate resume URL: {str(e)}")
+
+
+
+
+

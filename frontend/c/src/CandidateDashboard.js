@@ -7,6 +7,7 @@ import './Dashboard.css';
 function CandidateDashboard() {
         const [showAlertModal, setShowAlertModal] = useState(false);
         const [alertMessage, setAlertMessage] = useState('');
+        const [alertType, setAlertType] = useState('success');
       // Modal state for browser-style alert
 
       // To show the modal, call:
@@ -143,10 +144,10 @@ function CandidateDashboard() {
   // Notification preferences loader - define before use to satisfy ESLint
   const loadNotificationPreferences = useCallback(async () => {
     try {
-      const userId = localStorage.getItem('user_id');
-      const token = getAccessToken();
-      const response = await axios.get(`http://localhost:8000/user-preferences/${userId}`, {
-        headers: { Authorization: `Bearer ${token}` }
+      const response = await withAuth(async (token) => {
+        return await axios.get('http://localhost:8000/preferences', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
       });
       if (response.data) {
         setNotificationPrefs({
@@ -158,7 +159,7 @@ function CandidateDashboard() {
     } catch (error) {
       console.log('Could not load preferences, using defaults');
     }
-  }, []);
+  }, [withAuth]);
 
   useEffect(() => {
     const userId = localStorage.getItem('user_id');
@@ -183,7 +184,7 @@ function CandidateDashboard() {
       setJobs(res.data || []);
     }).catch((err) => {
       console.error('Error fetching jobs:', err);
-      setAlertMessage('Failed to load jobs'); setShowAlertModal(true);
+      setAlertMessage('Failed to load jobs'); setAlertType('error'); setShowAlertModal(true);
     });
 
     // Fetch user's applications
@@ -198,7 +199,7 @@ function CandidateDashboard() {
       setApplications(res.data || []);
     }).catch((err) => {
       console.error('Error fetching applications:', err);
-      setAlertMessage('Failed to load applications. Please try again.'); setShowAlertModal(true);
+      setAlertMessage('Failed to load applications. Please try again.'); setAlertType('error'); setShowAlertModal(true);
     });
 
     // Fetch notifications
@@ -249,7 +250,7 @@ const hasOpenApplication = () => {
   const handleUpload = async (jd_id) => {
     // Check if already applied
     if (hasAlreadyApplied(jd_id)) {
-      setAlertMessage('You have already applied to this job.'); setShowAlertModal(true);
+      setAlertMessage('You have already applied to this job.'); setAlertType('error'); setShowAlertModal(true);
       return;
     }
   const usedToken = getAccessToken();
@@ -261,13 +262,13 @@ const hasOpenApplication = () => {
     console.log('User ID:', localStorage.getItem('user_id'));
     console.log('==================');
     if (!usedToken) {
-      setAlertMessage('No token found. Please login again.'); setShowAlertModal(true);
+      setAlertMessage('No token found. Please login again.'); setAlertType('error'); setShowAlertModal(true);
       navigate('/login');
       return;
     }
     const file = selectedFiles[jd_id];
     if (!file) {
-      setAlertMessage('Please select a file first.'); setShowAlertModal(true);
+      setAlertMessage('Please select a file first.'); setAlertType('error'); setShowAlertModal(true);
       return;
     }
     setUploadingJob(jd_id);
@@ -289,7 +290,7 @@ const hasOpenApplication = () => {
         )
       ));
       console.log('Upload successful:', resp.data);
-      setAlertMessage('Resume uploaded successfully! ' + (resp.data.insights || '')); setShowAlertModal(true);
+      setAlertMessage('Resume uploaded successfully! ' + (resp.data.insights || '')); setAlertType('success'); setShowAlertModal(true);
       
       // Store jd_id and user_id for chatbot
       const userId = localStorage.getItem('user_id');
@@ -310,9 +311,9 @@ const hasOpenApplication = () => {
     } catch (error) {
       console.error('Upload error:', error);
       if (!error.response) {
-        setAlertMessage('Upload failed: Network error. Check backend connection.'); setShowAlertModal(true);
+        setAlertMessage('Upload failed: Network error. Check backend connection.'); setAlertType('error'); setShowAlertModal(true);
       } else {
-        setAlertMessage('Upload failed: ' + (error.response.data?.detail || error.message)); setShowAlertModal(true);
+        setAlertMessage('Upload failed: ' + (error.response.data?.detail || error.message)); setAlertType('error'); setShowAlertModal(true);
       }
     } finally {
       setUploadingJob(null);
@@ -354,7 +355,7 @@ const hasOpenApplication = () => {
       localStorage.setItem('name', newName.trim());
       setShowEditNameModal(false);
       setNameError('');
-      setAlertMessage('Name updated successfully!'); setShowAlertModal(true);
+      setAlertMessage('Name updated successfully!'); setAlertType('success'); setShowAlertModal(true);
     } catch (error) {
       console.error('Error updating name:', error);
       setNameError(error.response?.data?.detail || 'Failed to update name');
@@ -366,14 +367,14 @@ const hasOpenApplication = () => {
     setNotificationPrefs(newPrefs);
     
     try {
-      const userId = localStorage.getItem('user_id');
-      const token = getAccessToken();
-      await axios.patch(`http://localhost:8000/user-preferences/${userId}`, {
-        email_notifications: newPrefs.emailNotifications,
-        status_updates: newPrefs.statusUpdates,
-        job_alerts: newPrefs.jobAlerts
-      }, {
-        headers: { Authorization: `Bearer ${token}` }
+      await withAuth(async (token) => {
+        return await axios.put('http://localhost:8000/preferences', {
+          email_notifications: newPrefs.emailNotifications,
+          status_updates: newPrefs.statusUpdates,
+          job_alerts: newPrefs.jobAlerts
+        }, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
       });
     } catch (error) {
       console.error('Failed to update preferences:', error);
@@ -389,15 +390,15 @@ const hasOpenApplication = () => {
 
   const handlePasswordSubmit = async () => {
     if (!passwordData.current || !passwordData.new || !passwordData.confirm) {
-      setAlertMessage('Please fill in all password fields'); setShowAlertModal(true);
+      setAlertMessage('Please fill in all password fields'); setAlertType('error'); setShowAlertModal(true);
       return;
     }
     if (passwordData.new !== passwordData.confirm) {
-      setAlertMessage('New passwords do not match'); setShowAlertModal(true);
+      setAlertMessage('New passwords do not match'); setAlertType('error'); setShowAlertModal(true);
       return;
     }
     if (passwordData.new.length < 6) {
-      setAlertMessage('Password must be at least 6 characters long'); setShowAlertModal(true);
+      setAlertMessage('Password must be at least 6 characters long'); setAlertType('error'); setShowAlertModal(true);
       return;
     }
     
@@ -411,18 +412,18 @@ const hasOpenApplication = () => {
         headers: { Authorization: `Bearer ${token}` }
       });
       
-      setAlertMessage('Password changed successfully!'); setShowAlertModal(true);
+      setAlertMessage('Password changed successfully!'); setAlertType('success'); setShowAlertModal(true);
       setShowPasswordModal(false);
       setPasswordData({ current: '', new: '', confirm: '' });
     } catch (error) {
       if (error.response?.status === 401) {
-        setAlertMessage('Current password is incorrect'); setShowAlertModal(true);
+        setAlertMessage('Current password is incorrect'); setAlertType('error'); setShowAlertModal(true);
       } else if (error.response?.status === 404) {
-        setAlertMessage('Password change feature coming soon! Your request has been noted.'); setShowAlertModal(true);
+        setAlertMessage('Password change feature coming soon! Your request has been noted.'); setAlertType('success'); setShowAlertModal(true);
         setShowPasswordModal(false);
         setPasswordData({ current: '', new: '', confirm: '' });
       } else {
-        setAlertMessage('Error changing password. Please try again later.'); setShowAlertModal(true);
+        setAlertMessage('Error changing password. Please try again later.'); setAlertType('error'); setShowAlertModal(true);
       }
     }
   };
@@ -434,7 +435,7 @@ const hasOpenApplication = () => {
 
   const handleSupportSubmit = async () => {
     if (!supportMessage.trim()) {
-      setAlertMessage('Please enter a message'); setShowAlertModal(true);
+      setAlertMessage('Please enter a message'); setAlertType('error'); setShowAlertModal(true);
       return;
     }
     
@@ -450,7 +451,7 @@ const hasOpenApplication = () => {
         timestamp: new Date().toISOString()
       });
       
-      setAlertMessage('Thank you for contacting us! Our support team will get back to you within 24 hours.'); setShowAlertModal(true);
+      setAlertMessage('Thank you for contacting us! Our support team will get back to you within 24 hours.'); setAlertType('success'); setShowAlertModal(true);
       setShowSupportModal(false);
       setSupportMessage('');
     } catch (error) {
@@ -1169,7 +1170,7 @@ const hasOpenApplication = () => {
                     <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
                     <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
                   </svg>
-                  Change Password
+                  <span className="settings-action-label">Change Password</span>
                 </button>
                 <p className="settings-help-text">Update your password to keep your account secure</p>
               </div>
@@ -1456,16 +1457,27 @@ const hasOpenApplication = () => {
         {/* Alert Modal */}
         {showAlertModal && (
           <div className="modal-overlay" onClick={() => setShowAlertModal(false)}>
-            <div className="modal-content" onClick={e => e.stopPropagation()}>
-              <div className="modal-header">
-                <h3>Action Required</h3>
-                <button className="modal-close" onClick={() => setShowAlertModal(false)}>×</button>
+            <div className="modal-content" onClick={e => e.stopPropagation()} style={{maxWidth: '400px', padding: '32px', textAlign: 'center'}}>
+              <div style={{
+                width: '64px',
+                height: '64px',
+                borderRadius: '50%',
+                backgroundColor: alertType === 'success' ? '#10b981' : '#ef4444',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                margin: '0 auto 24px',
+                color: 'white',
+                fontSize: '32px',
+                fontWeight: 'bold'
+              }}>
+                {alertType === 'success' ? '✓' : '!'}
               </div>
-              <div className="modal-body">
-                <p>{alertMessage}</p>
+              <div className="modal-body" style={{padding: '0 0 24px 0'}}>
+                <p style={{margin: 0, fontSize: '16px', lineHeight: '1.5'}}>{alertMessage}</p>
               </div>
-              <div className="modal-footer">
-                <button className="modal-btn primary" onClick={() => setShowAlertModal(false)}>OK</button>
+              <div className="modal-footer" style={{borderTop: 'none', padding: 0, display: 'flex', justifyContent: 'center'}}>
+                <button className="modal-btn primary" onClick={() => setShowAlertModal(false)} style={{width: 'auto', minWidth: '100px', padding: '10px 32px'}}>OK</button>
               </div>
             </div>
           </div>
