@@ -159,11 +159,13 @@ def extract_skills_from_text(text, use_fuzzy=True):
     return result if result else []
 
 def preprocess_image(file_path):
+    _import_ml_libraries()
     img = cv2.imread(file_path, cv2.IMREAD_GRAYSCALE)
     img = cv2.threshold(img, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]
     return img
 
 def extract_text(file_path, file_type):
+    _import_ml_libraries()
     if file_type == "application/pdf":
         with pdfplumber.open(file_path) as pdf:
             text = "".join(page.extract_text() for page in pdf.pages)
@@ -294,6 +296,7 @@ def rank_resumes(resumes, jd_requirements, weights=None):
     Returns:
         List of tuples: (score, detailed_breakdown) for each resume
     """
+    _import_ml_libraries()
     # Use all-mpnet-base-v2 for best balance of accuracy and speed
     # This model outperforms MiniLM with only 2x slower inference (still fast on CPU)
     model = SentenceTransformer('all-mpnet-base-v2')
@@ -452,6 +455,7 @@ def explain_ranking_with_lime(resume_text, jd_requirements, resume_data, num_fea
         - matched_skills: List of skills that matched the JD
         - missing_skills: List of required skills not found in resume
     """
+    _import_ml_libraries()
     
     # Calculate the actual ranking score with breakdown
     jd_text = " ".join(jd_requirements) if jd_requirements else "default job requirements"
