@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import './CustomChatbot.css';
 
+const API_BASE = process.env.REACT_APP_BACKEND_URL;
+const RASA_BASE = process.env.REACT_APP_RASA_URL;
+
 function CustomChatbot() {
   const userId = localStorage.getItem('user_id');
   const chatStorageKey = `chat_history_${userId}`;
@@ -70,7 +73,7 @@ function CustomChatbot() {
       try {
         const token = localStorage.getItem('access_token') || localStorage.getItem('token');
         if (token) {
-          const appsResponse = await fetch(`http://localhost:8000/applications/${userId}`, {
+          const appsResponse = await fetch(`${API_BASE}/applications/${userId}`, {
             headers: { 'Authorization': `Bearer ${token}` }
           });
           const applications = await appsResponse.json();
@@ -87,7 +90,7 @@ function CustomChatbot() {
     }
 
     try {
-      const response = await fetch('http://localhost:5005/webhooks/rest/webhook', {
+      const response = await fetch(`${RASA_BASE}/webhooks/rest/webhook`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
