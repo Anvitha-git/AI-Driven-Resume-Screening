@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
-const API_BASE = process.env.REACT_APP_BACKEND_URL;
 import CustomChatbot from './CustomChatbot';
 import { useNavigate } from 'react-router-dom';
 import './Dashboard.css';
+const API_BASE = process.env.REACT_APP_BACKEND_URL;
 
 function CandidateDashboard() {
         const [showAlertModal, setShowAlertModal] = useState(false);

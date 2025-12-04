@@ -2,8 +2,8 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-const BASE_URL = process.env.REACT_APP_BACKEND_URL;
 import './Auth.css';
+const BASE_URL = process.env.REACT_APP_BACKEND_URL;
 
 function Login() {
   const navigate = useNavigate();
