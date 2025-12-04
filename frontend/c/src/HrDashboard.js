@@ -60,27 +60,64 @@ function HrDashboard() {
   const handleJobSubmit = async (e) => {
     e.preventDefault();
     try {
+      // Validate fields
+      if (!newJob.title || !newJob.description || !newJob.requirements) {
+        setAlertType('error');
+        setAlertMessage('Please fill in all required fields');
+        setShowAlertModal(true);
+        return;
+      }
+
+      // Validate deadline
+      if (!newJob.deadline) {
+        setAlertType('error');
+        setAlertMessage('Please select a deadline');
+        setShowAlertModal(true);
+        return;
+      }
+
+      const selectedDate = new Date(newJob.deadline);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      if (selectedDate <= today) {
+        setAlertType('error');
+        setAlertMessage('Deadline must be after today');
+        setShowAlertModal(true);
+        return;
+      }
+
       // Backend expects requirements: List[str]. Wrap textarea string as a single-item array.
       const jobData = {
-        title: newJob.title,
-        description: newJob.description,
-        requirements: newJob.requirements ? [newJob.requirements] : [],
+        title: newJob.title.trim(),
+        description: newJob.description.trim(),
+        requirements: newJob.requirements ? [newJob.requirements.trim()] : [],
         deadline: newJob.deadline,
         weights: newJob.weights,
       };
-      await withAuth(async (token) => (
-        axios.post(`${API_BASE}/jobs`, jobData, {
+
+      console.log('Submitting job data:', jobData);
+      
+      await withAuth(async (token) => {
+        const response = await axios.post(`${API_BASE}/jobs`, jobData, {
           headers: { Authorization: `Bearer ${token}` },
-        })
-      ));
-      setAlertType('success'); setAlertMessage('Job posted successfully!'); setShowAlertModal(true);
+        });
+        console.log('Job post response:', response);
+        return response;
+      });
+
+      setAlertType('success');
+      setAlertMessage('Job posted successfully!');
+      setShowAlertModal(true);
       setNewJob({ title: '', description: '', requirements: '', deadline: '', weights: { skills: 0.4, experience: 0.4, education: 0.2 } });
-      fetchJobs();
+      
+      // Refresh jobs list after short delay
+      setTimeout(() => fetchJobs(), 500);
     } catch (error) {
-      // Surface backend error details if available
-      const msg = error?.response?.data?.detail ? `Failed to post job: ${error.response.data.detail}` : 'Failed to post job';
       console.error('Post job error:', error);
-      setAlertType('error'); setAlertMessage(msg); setShowAlertModal(true);
+      const errorMsg = error?.response?.data?.detail || error?.message || 'Failed to post job';
+      setAlertType('error');
+      setAlertMessage(`Error: ${errorMsg}`);
+      setShowAlertModal(true);
     }
   };
 
@@ -1038,11 +1075,24 @@ function HrDashboard() {
               className="dashboard-input"
               name="deadline"
               type="date" 
-              placeholder="mm/dd/yyyy"
+              placeholder="dd/mm/yyyy"
+              min={new Date().toISOString().split('T')[0]}
               value={newJob.deadline} 
-              onChange={(e) => setNewJob({ ...newJob, deadline: e.target.value })} 
+              onChange={(e) => {
+                const selectedDate = new Date(e.target.value);
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                if (selectedDate < today) {
+                  setAlertType('error');
+                  setAlertMessage('Deadline must be set to a date after today');
+                  setShowAlertModal(true);
+                  return;
+                }
+                setNewJob({ ...newJob, deadline: e.target.value });
+              }}
               required
             />
+            <small style={{ color: '#667eea', marginTop: '0.3rem', display: 'block' }}>Format: dd/mm/yyyy (must be after today)</small>
           </div>
           
           <div style={{ marginTop: '1rem', marginBottom: '0.3rem', fontSize: '0.9rem', fontWeight: '600', color: '#667eea' }}>

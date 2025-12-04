@@ -464,11 +464,23 @@ async def refresh_token_endpoint(body: RefreshRequest):
 
 ## Demo login endpoints removed
 
+# Pre-flight check: verify backend can insert jobs
+@app.get("/health/jobs-ready")
+async def check_jobs_ready():
+    try:
+        if not supabase_service:
+            return {"ready": False, "message": "Supabase service client not initialized"}
+        return {"ready": True, "message": "Backend ready for job postings"}
+    except Exception as e:
+        return {"ready": False, "message": str(e)}
+
 # Job postings
 @app.post("/jobs", response_model=JobPosting)
 async def create_job(job: JobPosting, user=Depends(get_current_user)):
+    logging.info(f"[CREATE_JOB] User {user.id} (role={user.role}) posting job: {job.title}")
     if user.role not in ["HR", "demo_hr"]:
-        raise HTTPException(status_code=403, detail="Not authorized")
+        logging.warning(f"[CREATE_JOB] Unauthorized: user role is {user.role}")
+        raise HTTPException(status_code=403, detail="Not authorized: only HR can post jobs")
     try:
         # Ensure user exists in users table (for foreign key constraint)
         try:
