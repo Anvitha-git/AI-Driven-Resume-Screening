@@ -32,13 +32,19 @@ def get_email_service():
 # Create two separate clients:
 # - supabase_auth: used ONLY for auth operations (sign up/in, token validation)
 # - supabase_service: used for storage and database operations with the service role key (bypasses RLS)
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-# Prefer explicit variables if present; fall back to SUPABASE_KEY for service role
-SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY")
-SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY") or SUPABASE_SERVICE_ROLE_KEY
+try:
+    SUPABASE_URL = os.getenv("SUPABASE_URL")
+    # Prefer explicit variables if present; fall back to SUPABASE_KEY for service role
+    SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY")
+    SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY") or SUPABASE_SERVICE_ROLE_KEY
 
-supabase_auth: Client = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
-supabase_service: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+    supabase_auth: Client = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
+    supabase_service: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+    logging.info("Supabase clients initialized successfully")
+except Exception as e:
+    logging.error(f"Failed to initialize Supabase clients: {e}")
+    supabase_auth = None
+    supabase_service = None
 
 # Enable CORS
 # Allow frontend from localhost and local network during development
@@ -62,7 +68,10 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 # Health check for platform port scanning (Render/Cloud)
 @app.get("/health")
 async def health():
-    return {"status": "ok"}
+    return {
+        "status": "ok",
+        "supabase": "connected" if supabase_auth and supabase_service else "not configured"
+    }
 
 # Pydantic models
 class JobPosting(BaseModel):
