@@ -4,8 +4,6 @@ import "./LandingPage.css";
 
 const LandingPage = () => {
   const navigate = useNavigate();
-  const token = localStorage.getItem('access_token') || localStorage.getItem('token');
-  const role = localStorage.getItem('role');
   const [isVisible, setIsVisible] = useState(false);
   const [showTeam, setShowTeam] = useState(false);
 
