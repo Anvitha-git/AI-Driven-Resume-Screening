@@ -1,9 +1,9 @@
 # Free Deployment Guide
 
-This guide deploys all three parts for free using recommended providers:
+This guide deploys all three parts for free using your chosen stack:
 - Backend (FastAPI) on Render
-- Frontend (React) on Vercel or Netlify
-- Chatbot (Rasa + Actions) on Fly.io using Docker
+- Frontend (React) on Netlify
+- Chatbot (Rasa + Actions) on Render using Docker
 
 ## 1) Backend on Render
 - Create a Render Web Service from this repo.
@@ -17,49 +17,56 @@ This guide deploys all three parts for free using recommended providers:
   - Any SMTP/email creds if mailing is enabled
 - After deploy, note your backend URL: `https://<service>.onrender.com`
 
-## 2) Frontend on Vercel (or Netlify)
-Either platform works. Vercel steps:
-- Import your GitHub repo → Framework: React
-- Root/Base directory: `frontend/c`
+## 2) Frontend on Netlify (React)
+- New site from Git → Connect your GitHub repo.
+- Base directory: `frontend/c`
 - Build command: `npm install && npm run build`
-- Output/publish directory: `build`
-- Environment variables:
-  - `REACT_APP_BACKEND_URL` → Render backend URL
-  - `REACT_APP_RASA_URL` → Fly.io Rasa URL (optional)
-  - `REACT_APP_SUPABASE_URL` → your Supabase URL (optional)
-  - `REACT_APP_SUPABASE_ANON_KEY` → your Supabase anon key (optional)
-Netlify is similar: Base dir `frontend/c`, Publish `build`, same env vars.
+- Publish directory: `build`
 
-## 3) Rasa Chatbot on Fly.io (Docker)
-Create two Fly apps in one organization.
+Environment variables (Netlify → Site settings → Build & deploy → Environment):
+- `REACT_APP_BACKEND_URL` → Render backend URL (e.g., `https://backend-api.onrender.com`)
+- `REACT_APP_RASA_URL` → Render Rasa server URL (optional, if frontend calls it)
+- `REACT_APP_SUPABASE_URL` → your Supabase URL (optional)
+- `REACT_APP_SUPABASE_ANON_KEY` → your Supabase anon key (optional)
 
-### Rasa server
-- Source: `chatbot/` with `Dockerfile` provided.
-- Exposes port `8080`.
-- Start: `rasa run --enable-api --cors "*" --port 8080`.
+Notes:
+- After changing env vars, trigger a redeploy so the build picks them up.
+- If you see 404s, check that Publish directory is `build` and Base directory is `frontend/c`.
 
-### Actions server
-- Source: `chatbot/actions/` with `Dockerfile` provided.
-- Exposes port `5055`.
-- Start: `rasa run actions --port 5055`.
+## 3) Rasa Chatbot on Render (Docker)
+Create two Render services in the same project.
+
+### Rasa server service
+- Type: Web Service
+- Runtime: Docker → use `chatbot/Dockerfile`
+- Port: `8080`
+- Health check path: `/` (or disable)
+- Start command handled by Dockerfile: `rasa run --enable-api --cors "*" --port 8080`
+
+### Actions server service
+- Type: Web Service
+- Runtime: Docker → use `chatbot/actions/Dockerfile`
+- Port: `5055`
+- Health check path: `/` (or disable)
+- Start command handled by Dockerfile: `rasa run actions --port 5055`
 
 ### Configure endpoints
-- In `chatbot/endpoints.yml`, set the actions endpoint to the public Fly URL:
+- In `chatbot/endpoints.yml`, set the actions endpoint to the public Render URL:
 
 ```yaml
 action_endpoint:
-  url: "https://<your-actions-app>.fly.dev/webhook"
+  url: "https://<your-actions-service>.onrender.com/webhook"
 ```
 
-If both services run in the same org, you may be able to use internal networking; otherwise use public URL.
+If both services are in the same Render account, use the public URL.
 
 ## 4) Wire URLs
-- Frontend uses `REACT_APP_BACKEND_URL` to call the FastAPI backend.
-- If the frontend calls Rasa directly, set `REACT_APP_RASA_URL`.
-- Backend stays the same; ensure CORS allows your deployed frontend domain (Vercel/Netlify).
+- Frontend uses `REACT_APP_BACKEND_URL` to call the FastAPI backend (Render URL).
+- If the frontend calls Rasa directly, set `REACT_APP_RASA_URL` to the Rasa Render URL.
+- Backend stays the same; ensure CORS allows your deployed frontend domain (Render Static Site/Vercel/Netlify).
 
 ## 5) CORS notes
-- Backend FastAPI should allow origins for your Vercel/Netlify domain.
+- Backend FastAPI should allow origins for your Netlify domain.
 - Rasa server command includes `--cors "*"` for simplicity; restrict later if needed.
 
 ## 6) Testing
@@ -112,12 +119,12 @@ SMTP_PASSWORD=SG.xxxxxx_your_sendgrid_api_key
 SMTP_FROM_EMAIL=noreply@yourdomain.com
 SMTP_FROM_NAME=AI Resume Screening
 
-RASA_URL=https://your-rasa.fly.dev
+RASA_URL=https://your-rasa.onrender.com
 ```
 
-### Frontend (Vercel/Netlify)
+### Frontend (Netlify)
 - `REACT_APP_BACKEND_URL`: Render backend URL
-- `REACT_APP_RASA_URL`: Fly.io Rasa URL (optional)
+- `REACT_APP_RASA_URL`: Render Rasa URL (optional)
 - `REACT_APP_SUPABASE_URL`: Supabase URL (optional)
 - `REACT_APP_SUPABASE_ANON_KEY`: Supabase anon key (optional)
 
@@ -125,12 +132,12 @@ Example:
 
 ```
 REACT_APP_BACKEND_URL=https://your-backend.onrender.com
-REACT_APP_RASA_URL=https://your-rasa.fly.dev
+REACT_APP_RASA_URL=https://your-rasa.onrender.com
 REACT_APP_SUPABASE_URL=https://exbmjznbphjujgngtnrz.supabase.co
 REACT_APP_SUPABASE_ANON_KEY=your_anon_key_here
 ```
 
-### Rasa (Fly.io)
+### Rasa (Render)
 - `RASA_PORT`: `8080` (server)
 - `ACTIONS_PORT`: `5055` (actions)
 - Any extra secrets your actions need
@@ -139,7 +146,7 @@ Update `chatbot/endpoints.yml` with actions URL:
 
 ```yaml
 action_endpoint:
-  url: "https://<your-actions-app>.fly.dev/webhook"
+  url: "https://<your-actions-service>.onrender.com/webhook"
 ```
 
 ### SMTP Provider Notes
