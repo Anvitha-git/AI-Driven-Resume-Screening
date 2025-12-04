@@ -1,51 +1,48 @@
-# Free Deployment Guide
+# Deployment Guide
 
-This guide deploys all three parts for free using your chosen stack:
+This guide deploys all three parts using your chosen stack:
 - Backend (FastAPI) on Render
 - Frontend (React) on Netlify
 - Chatbot (Rasa + Actions) on Render using Docker
 
 ## 1) Backend on Render
-- Create a Render Web Service from this repo.
-- Root directory: `backend`
-- Build command: `pip install -r requirements.txt`
-- Start command: `uvicorn main:app --host 0.0.0.0 --port 10000`
-- Environment variables:
   - `SUPABASE_URL`
   - `SUPABASE_ANON_KEY`
   - `SUPABASE_SERVICE_KEY` (if required)
   - Any SMTP/email creds if mailing is enabled
 - After deploy, note your backend URL: `https://<service>.onrender.com`
 
-## 2) Frontend on Netlify (React)
-- New site from Git → Connect your GitHub repo.
-- Base directory: `frontend/c`
-- Build command: `npm install && npm run build`
-- Publish directory: `build`
+- Render must see your app listening on `$PORT`. We expose `/health` to help port scanning.
 
-Environment variables (Netlify → Site settings → Build & deploy → Environment):
+
+Branch & Node version:
 - `REACT_APP_BACKEND_URL` → Render backend URL (e.g., `https://backend-api.onrender.com`)
 - `REACT_APP_RASA_URL` → Render Rasa server URL (optional, if frontend calls it)
 - `REACT_APP_SUPABASE_URL` → your Supabase URL (optional)
 - `REACT_APP_SUPABASE_ANON_KEY` → your Supabase anon key (optional)
-
-Notes:
-- After changing env vars, trigger a redeploy so the build picks them up.
 - If you see 404s, check that Publish directory is `build` and Base directory is `frontend/c`.
 
 ## 3) Rasa Chatbot on Render (Docker)
 Create two Render services in the same project.
 
+Recommended: use `render.yaml` (Blueprint) at repo root so each service builds from the correct context:
+- `backend-api`: root `backend/`, Python
+- `frontend-app`: Static Site from `frontend/c` (you may still prefer Netlify)
+- `rasa-server`: Docker context `chatbot/`
+- `rasa-actions`: Docker context `chatbot/actions/`
+
+If you deploy manually without Blueprint from the repo root, Docker may not find `chatbot/*` files, causing COPY errors. Use Blueprint or set the service Build Context to the correct subfolder.
+
 ### Rasa server service
 - Type: Web Service
-- Runtime: Docker → use `chatbot/Dockerfile`
+- Runtime: Docker → use `chatbot/Dockerfile` with Build Context set to `chatbot/`
 - Port: `8080`
 - Health check path: `/` (or disable)
 - Start command handled by Dockerfile: `rasa run --enable-api --cors "*" --port 8080`
 
 ### Actions server service
 - Type: Web Service
-- Runtime: Docker → use `chatbot/actions/Dockerfile`
+- Runtime: Docker → use `chatbot/actions/Dockerfile` with Build Context set to `chatbot/actions/`
 - Port: `5055`
 - Health check path: `/` (or disable)
 - Start command handled by Dockerfile: `rasa run actions --port 5055`
@@ -64,6 +61,15 @@ If both services are in the same Render account, use the public URL.
 - Frontend uses `REACT_APP_BACKEND_URL` to call the FastAPI backend (Render URL).
 - If the frontend calls Rasa directly, set `REACT_APP_RASA_URL` to the Rasa Render URL.
 - Backend stays the same; ensure CORS allows your deployed frontend domain (Render Static Site/Vercel/Netlify).
+  - FastAPI currently allows common localhost origins; add your Netlify site domain in env or code if needed.
+
+### Live URLs
+- Frontend (Netlify): https://ai-resumescreening.netlify.app
+- Backend (Render): https://ai-driven-resume-screening-backend.onrender.com
+
+Set these in your environments:
+- Netlify env: `REACT_APP_BACKEND_URL=https://ai-driven-resume-screening-backend.onrender.com`
+- Backend CORS: allow origin `https://ai-resumescreening.netlify.app`
 
 ## 5) CORS notes
 - Backend FastAPI should allow origins for your Netlify domain.
@@ -71,7 +77,12 @@ If both services are in the same Render account, use the public URL.
 
 ## 6) Testing
 - Open Netlify site → verify API calls hit Render and chatbot endpoints.
-- Check Railway logs for Rasa and actions.
+- Check Render logs for Rasa and actions.
+
+Quick checks:
+- Backend health: `curl https://<backend>.onrender.com/health`
+- Rasa server: `GET https://<rasa-server>.onrender.com` should respond.
+- Actions webhook: `POST https://<rasa-actions>.onrender.com/webhook` is used by Rasa.
 
 ## 7) Cost caveats
 - Free tiers may sleep/scale down; first request can be slow.
