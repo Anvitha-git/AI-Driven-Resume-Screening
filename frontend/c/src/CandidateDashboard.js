@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
+const API_BASE = process.env.REACT_APP_BACKEND_URL;
 import CustomChatbot from './CustomChatbot';
 import { useNavigate } from 'react-router-dom';
 import './Dashboard.css';
@@ -53,7 +54,7 @@ function CandidateDashboard() {
     const refresh_token = localStorage.getItem('refresh_token');
     if (!refresh_token) return false;
     try {
-      const resp = await axios.post('http://localhost:8000/refresh', { refresh_token });
+      const resp = await axios.post(`${API_BASE}/refresh`, { refresh_token });
       const { access_token, refresh_token: new_rt } = resp.data || {};
       if (access_token) {
         localStorage.setItem('access_token', access_token);
@@ -145,7 +146,7 @@ function CandidateDashboard() {
   const loadNotificationPreferences = useCallback(async () => {
     try {
       const response = await withAuth(async (token) => {
-        return await axios.get('http://localhost:8000/preferences', {
+        return await axios.get(`${API_BASE}/preferences`, {
           headers: { Authorization: `Bearer ${token}` }
         });
       });
@@ -178,7 +179,7 @@ function CandidateDashboard() {
 
     // Fetch jobs
     withAuth(async (token) => {
-      const res = await axios.get('http://localhost:8000/jobs', {
+      const res = await axios.get(`${API_BASE}/jobs`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setJobs(res.data || []);
@@ -189,7 +190,7 @@ function CandidateDashboard() {
 
     // Fetch user's applications
     withAuth(async (token) => {
-      const res = await axios.get(`http://localhost:8000/applications/${userId}`, {
+      const res = await axios.get(`${API_BASE}/applications/${userId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       console.log('Applications response:', res.data);
@@ -204,7 +205,7 @@ function CandidateDashboard() {
 
     // Fetch notifications
     withAuth(async (token) => {
-      const res = await axios.get(`http://localhost:8000/notifications/${userId}`, {
+      const res = await axios.get(`${API_BASE}/notifications/${userId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setNotifications(res.data || []);
@@ -275,11 +276,11 @@ const hasOpenApplication = () => {
     const formData = new FormData();
     formData.append('file', file);
     try {
-      console.log('Sending request to:', `http://localhost:8000/upload-resume/${jd_id}`);
+      console.log('Sending request to:', `${API_BASE}/upload-resume/${jd_id}`);
       console.log('Authorization header:', `Bearer ${usedToken.substring(0, 20)}...`);
       const resp = await withAuth(async (token) => (
         axios.post(
-          `http://localhost:8000/upload-resume/${jd_id}`,
+          `${API_BASE}/upload-resume/${jd_id}`,
           formData,
           {
             headers: {
@@ -302,7 +303,7 @@ const hasOpenApplication = () => {
       // Refresh applications
       if (userId) {
         withAuth(async (token) => {
-          const res = await axios.get(`http://localhost:8000/applications/${userId}`, {
+          const res = await axios.get(`${API_BASE}/applications/${userId}`, {
             headers: { Authorization: `Bearer ${token}` },
           });
           setApplications(res.data || []);
@@ -347,7 +348,7 @@ const hasOpenApplication = () => {
     
     try {
       const token = getAccessToken();
-      await axios.put('http://localhost:8000/update-name', 
+      await axios.put(`${API_BASE}/update-name`, 
         { name: newName.trim() },
         { headers: { Authorization: `Bearer ${token}` }}
       );
@@ -368,7 +369,7 @@ const hasOpenApplication = () => {
     
     try {
       await withAuth(async (token) => {
-        return await axios.put('http://localhost:8000/preferences', {
+        return await axios.put(`${API_BASE}/preferences`, {
           email_notifications: newPrefs.emailNotifications,
           status_updates: newPrefs.statusUpdates,
           job_alerts: newPrefs.jobAlerts
@@ -405,7 +406,7 @@ const hasOpenApplication = () => {
     try {
       // Call backend to change password (endpoint needs to be created)
       const token = getAccessToken();
-      await axios.post('http://localhost:8000/change-password', {
+      await axios.post(`${API_BASE}/change-password`, {
         current_password: passwordData.current,
         new_password: passwordData.new
       }, {
@@ -498,7 +499,7 @@ const hasOpenApplication = () => {
     
     // Refresh jobs
     withAuth(async (token2) => {
-      const res = await axios.get('http://localhost:8000/jobs', {
+      const res = await axios.get(`${API_BASE}/jobs`, {
         headers: { Authorization: `Bearer ${token2}` },
       });
       setJobs(res.data || []);
@@ -509,7 +510,7 @@ const hasOpenApplication = () => {
     // Refresh applications
     if (userId && token) {
       withAuth(async (token2) => {
-        const res = await axios.get(`http://localhost:8000/applications/${userId}`, {
+          const res = await axios.get(`${API_BASE}/applications/${userId}`, {
           headers: { Authorization: `Bearer ${token2}` },
         });
         setApplications(res.data || []);
@@ -519,7 +520,7 @@ const hasOpenApplication = () => {
       
       // Refresh notifications
       withAuth(async (token2) => {
-        const res = await axios.get(`http://localhost:8000/notifications/${userId}`, {
+        const res = await axios.get(`${API_BASE}/notifications/${userId}`, {
           headers: { Authorization: `Bearer ${token2}` },
         });
         setNotifications(res.data || []);

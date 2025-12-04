@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+const API_BASE = process.env.REACT_APP_BACKEND_URL;
 import './Dashboard.css';
 import './ExplanationModal.css';
 
@@ -17,7 +18,7 @@ function HrDashboard() {
     const refresh_token = localStorage.getItem('refresh_token');
     if (!refresh_token) return false;
     try {
-      const resp = await axios.post('http://localhost:8000/refresh', { refresh_token });
+      const resp = await axios.post(`${API_BASE}/refresh`, { refresh_token });
       const { access_token, refresh_token: new_rt } = resp.data || {};
       if (access_token) {
         localStorage.setItem('access_token', access_token);
