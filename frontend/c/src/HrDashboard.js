@@ -125,46 +125,67 @@ function HrDashboard() {
   const handleRankResumes = async (jdId) => {
     setRankingJob(jdId);
     try {
+      console.log(`[RANK] Starting rank for job ${jdId}`);
+      
       const list = await withAuth(async (token) => {
-        await axios.post(`${API_BASE}/rank-resumes/${jdId}`, {}, {
+        console.log(`[RANK] Calling rank-resumes endpoint for ${jdId}`);
+        const rankResp = await axios.post(`${API_BASE}/rank-resumes/${jdId}`, {}, {
           headers: { Authorization: `Bearer ${token}` },
         });
+        console.log(`[RANK] Rank response:`, rankResp.data);
+
+        console.log(`[RANK] Fetching ranked resumes for ${jdId}`);
         const res = await axios.get(`${API_BASE}/resumes/${jdId}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
+        console.log(`[RANK] Resumes fetched:`, res.data);
         return Array.isArray(res.data) ? res.data : [];
       });
+
+      if (!list || list.length === 0) {
+        setAlertType('warning');
+        setAlertMessage('No resumes found for this job.');
+        setShowAlertModal(true);
+        setRankingJob(null);
+        return;
+      }
       
-      const mapped = list.map(r => ({
+      const mapped = list.map((r, idx) => ({
         id: r.resume_id,
-        rank: r.rank,
+        rank: idx + 1,
         candidate: r.user_email || r.user_id,
-        score: typeof r.score === 'number' ? (r.score * 100).toFixed(1) : r.score,
-        explanation: r.explanation,
+        score: typeof r.score === 'number' ? (r.score * 100).toFixed(1) : r.score || 'N/A',
+        explanation: r.explanation || 'No explanation available',
         file_url: r.file_url,
         resume_id: r.resume_id,
         decision: r.decision || 'pending',
       }));
+      
+      console.log(`[RANK] Mapped ${mapped.length} candidates`);
       setCandidates(mapped);
-      setCurrentJobId(jdId); // Track the job ID for later submission
+      setCurrentJobId(jdId);
       setOpenCandidatesDialog(true);
       
-      // Save to localStorage so dialog persists across page navigation
+      // Save to localStorage for persistence
       localStorage.setItem('hr_candidates_dialog', JSON.stringify({
         isOpen: true,
         jobId: jdId,
         candidatesList: mapped
       }));
       
-      // Note: Dialog stays open until HR submits decisions
-      // Job status will be updated when HR clicks "Submit Decisions"
+      setAlertType('success');
+      setAlertMessage(`Resumes ranked! ${mapped.length} candidate(s) ready for review.`);
+      setShowAlertModal(true);
       
     } catch (error) {
-      console.error('Rank resumes error:', error);
-      const msg = error?.response?.data?.detail ? `Failed to rank resumes: ${error.response.data.detail}` : 'Failed to rank resumes';
-      setAlertType('error'); setAlertMessage(msg); setShowAlertModal(true);
+      console.error('[RANK] Error:', error);
+      const errorMsg = error?.response?.data?.detail || error?.message || 'Failed to rank resumes';
+      setAlertType('error');
+      setAlertMessage(`Rank Error: ${errorMsg}`);
+      setShowAlertModal(true);
+    } finally {
+      setRankingJob(null);
     }
-    setRankingJob(null);
   };
 
   // Handler for opening a job in history

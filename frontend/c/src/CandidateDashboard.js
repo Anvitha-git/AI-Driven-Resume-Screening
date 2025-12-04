@@ -231,6 +231,38 @@ function CandidateDashboard() {
 
   const handleFileChange = (jd_id) => (e) => {
     const file = e.target.files?.[0] || null;
+    if (!file) {
+      setSelectedFiles((prev) => ({ ...prev, [jd_id]: null }));
+      return;
+    }
+
+    // Validate file type
+    const allowedTypes = [
+      'application/pdf',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'image/png',
+      'image/jpeg'
+    ];
+
+    if (!allowedTypes.includes(file.type)) {
+      setAlertMessage('Invalid file type. Please upload PDF, DOC, DOCX, PNG, or JPG.');
+      setAlertType('error');
+      setShowAlertModal(true);
+      e.target.value = ''; // Clear input
+      return;
+    }
+
+    // Validate file size (max 10MB)
+    const maxSizeInMB = 10;
+    if (file.size > maxSizeInMB * 1024 * 1024) {
+      setAlertMessage(`File size exceeds ${maxSizeInMB}MB limit.`);
+      setAlertType('error');
+      setShowAlertModal(true);
+      e.target.value = ''; // Clear input
+      return;
+    }
+
     setSelectedFiles((prev) => ({ ...prev, [jd_id]: file }));
   };
 
