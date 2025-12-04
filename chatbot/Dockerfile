@@ -23,8 +23,7 @@ COPY credentials.yml ./
 COPY data ./data
 COPY models ./models
 
-# Expose Rasa server port
-EXPOSE 8080
-
-# Enable CORS for web clients
-CMD ["bash", "-lc", "rasa run --enable-api --cors '*' --port 8080"]
+# Enable CORS for web clients; bind to Render's $PORT
+ENV PORT=10000
+EXPOSE 10000
+CMD ["bash", "-lc", "rasa run --enable-api --cors '*' --port $PORT"]

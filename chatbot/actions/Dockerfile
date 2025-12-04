@@ -12,6 +12,6 @@ RUN pip install --no-cache-dir -r requirements.txt || true
 COPY actions.py ./
 COPY __init__.py ./
 
-EXPOSE 5055
-
-CMD ["bash", "-lc", "rasa run actions --port 5055"]
+ENV PORT=10000
+EXPOSE 10000
+CMD ["bash", "-lc", "rasa run actions --port $PORT"]

@@ -40,6 +40,8 @@ app.add_middleware(
         "http://127.0.0.1:3000",
         # Add your LAN IP (React dev server) if accessed from another machine
         "http://10.195.224.144:3000",
+        # Deployed frontend (Netlify)
+        "https://ai-resumescreening.netlify.app",
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -47,6 +49,11 @@ app.add_middleware(
 )
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
+
+# Health check for platform port scanning (Render/Cloud)
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
 
 # Pydantic models
 class JobPosting(BaseModel):
