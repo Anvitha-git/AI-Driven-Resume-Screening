@@ -1,5 +1,6 @@
 fastapi[all]
 uvicorn
+gunicorn
 python-dotenv
 supabase
 python-jose[cryptography]
