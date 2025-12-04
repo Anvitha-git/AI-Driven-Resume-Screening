@@ -6,41 +6,20 @@ This guide deploys all three parts using your chosen stack:
 - Chatbot (Rasa + Actions) on Render using Docker
 
 ## 1) Backend on Render
-- Create a Render Web Service from this repo.
-- Root directory: `backend`
-- Build command: `pip install -r requirements.txt`
-- Start command: `uvicorn main:app --host 0.0.0.0 --port $PORT`
-- Health check path: `/health`
-- Environment variables:
   - `SUPABASE_URL`
   - `SUPABASE_ANON_KEY`
   - `SUPABASE_SERVICE_KEY` (if required)
   - Any SMTP/email creds if mailing is enabled
 - After deploy, note your backend URL: `https://<service>.onrender.com`
 
-Important:
-- If deploying via Blueprint, ensure the branch is `pranav-dev` so the latest configs are used.
 - Render must see your app listening on `$PORT`. We expose `/health` to help port scanning.
 
-## 2) Frontend on Netlify (React)
-- New site from Git → Connect your GitHub repo.
-- Base directory: `frontend/c`
-- Build command: `npm install --legacy-peer-deps && npm run build`
-- Publish directory: `build`
 
 Branch & Node version:
-- Set the build branch to `pranav-dev` to include `netlify.toml` and `.npmrc` fixes.
-- Node version is pinned via `netlify.toml` to 18.
-  - Alternatively, set `Environment` → `NODE_VERSION=18` in Netlify.
-
-Environment variables (Netlify → Site settings → Build & deploy → Environment):
 - `REACT_APP_BACKEND_URL` → Render backend URL (e.g., `https://backend-api.onrender.com`)
 - `REACT_APP_RASA_URL` → Render Rasa server URL (optional, if frontend calls it)
 - `REACT_APP_SUPABASE_URL` → your Supabase URL (optional)
 - `REACT_APP_SUPABASE_ANON_KEY` → your Supabase anon key (optional)
-
-Notes:
-- After changing env vars, trigger a redeploy so the build picks them up.
 - If you see 404s, check that Publish directory is `build` and Base directory is `frontend/c`.
 
 ## 3) Rasa Chatbot on Render (Docker)

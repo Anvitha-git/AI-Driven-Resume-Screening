@@ -1,0 +1,1 @@
+web: bash -lc "rasa run actions --port $PORT"
