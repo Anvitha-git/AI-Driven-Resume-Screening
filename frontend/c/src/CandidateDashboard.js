@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
@@ -9,6 +10,24 @@ function CandidateDashboard() {
   const [showAlertModal, setShowAlertModal] = useState(false);
   const [alertMessage, setAlertMessage] = useState('');
   const [alertType, setAlertType] = useState('success');
+  const [theme, setTheme] = useState(localStorage.getItem('theme') || 'light');
+  const [jobs, setJobs] = useState([]);
+  const [selectedFiles, setSelectedFiles] = useState({});
+  const [applications, setApplications] = useState([]);
+  const [notifications, setNotifications] = useState([]);
+  const [uploadingJob, setUploadingJob] = useState(null);
+  const [showNotifDropdown, setShowNotifDropdown] = useState(false);
+  const [unreadNotifCount, setUnreadNotifCount] = useState(0);
+  const [showProfileDropdown, setShowProfileDropdown] = useState(false);
+  const [showSideDrawer, setShowSideDrawer] = useState(false);
+  const [activePage, setActivePage] = useState('jobs');
+  const [showEditNameModal, setShowEditNameModal] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [nameError, setNameError] = useState('');
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [passwordData, setPasswordData] = useState({ current: '', new: '', confirm: '' });
+
+  const navigate = useNavigate();
 
   const handleThemeToggle = () => {
     const newTheme = theme === 'light' ? 'dark' : 'light';
@@ -16,13 +35,6 @@ function CandidateDashboard() {
     localStorage.setItem('theme', newTheme);
     document.documentElement.setAttribute('data-theme', newTheme);
   };
-
-  const navigate = useNavigate();
-  const [passwordData, setPasswordData] = useState({ current: '', new: '', confirm: '' });
-
-
-
-  const [theme, setTheme] = useState(localStorage.getItem('theme') || 'light');
 
   const getAccessToken = () => localStorage.getItem('access_token') || localStorage.getItem('token');
   
@@ -68,8 +80,6 @@ function CandidateDashboard() {
     }
   }, [navigate, tryRefreshToken]);
 
-  const [showProfileDropdown, setShowProfileDropdown] = useState(false);
-
   React.useEffect(() => {
     if (window.history && window.history.pushState) {
       window.history.pushState(null, '', window.location.href);
@@ -80,14 +90,6 @@ function CandidateDashboard() {
       return () => window.removeEventListener('popstate', handlePopState);
     }
   }, []);
-
-  const [jobs, setJobs] = useState([]);
-  const [selectedFiles, setSelectedFiles] = useState({});
-  const [applications, setApplications] = useState([]);
-  const [notifications, setNotifications] = useState([]);
-  const [uploadingJob, setUploadingJob] = useState(null);
-  const [showNotifDropdown, setShowNotifDropdown] = useState(false);
-  const [unreadNotifCount, setUnreadNotifCount] = useState(0);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -296,6 +298,13 @@ function CandidateDashboard() {
     navigate('/', { replace: true });
   };
 
+  const handleEditName = () => {
+    const currentName = localStorage.getItem('name') || '';
+    setNewName(currentName);
+    setNameError('');
+    setShowEditNameModal(true);
+  };
+
   const handleNameSubmit = async () => {
     if (!newName.trim()) {
       setNameError('Name cannot be empty');
@@ -319,6 +328,10 @@ function CandidateDashboard() {
       console.error('Error updating name:', error);
       setNameError(error.response?.data?.detail || 'Failed to update name');
     }
+  };
+
+  const handleChangePassword = () => {
+    setShowPasswordModal(true);
   };
 
   const handlePasswordSubmit = async () => {
@@ -593,6 +606,53 @@ function CandidateDashboard() {
               </div>
               <p style={{margin: 0, fontSize: '16px', lineHeight: '1.5'}}>{alertMessage}</p>
               <button className="modal-btn primary" onClick={() => setShowAlertModal(false)} style={{marginTop: '24px', padding: '10px 32px'}}>OK</button>
+            </div>
+          </div>
+        )}
+
+        {showEditNameModal && (
+          <div className="modal-overlay" onClick={() => setShowEditNameModal(false)}>
+            <div className="modal-content" onClick={e => e.stopPropagation()}>
+              <h2>Edit Name</h2>
+              <input type="text" value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Enter new name" className="modal-input" />
+              {nameError && <p style={{color: '#ef4444', marginTop: '0.5rem'}}>{nameError}</p>}
+              <div style={{display: 'flex', gap: '1rem', marginTop: '1.5rem'}}>
+                <button className="modal-btn primary" onClick={handleNameSubmit}>Save</button>
+                <button className="modal-btn secondary" onClick={() => setShowEditNameModal(false)}>Cancel</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showPasswordModal && (
+          <div className="modal-overlay" onClick={() => setShowPasswordModal(false)}>
+            <div className="modal-content" onClick={e => e.stopPropagation()}>
+              <h2>Change Password</h2>
+              <input 
+                type="password" 
+                value={passwordData.current} 
+                onChange={(e) => setPasswordData({...passwordData, current: e.target.value})} 
+                placeholder="Current Password" 
+                className="modal-input"
+              />
+              <input 
+                type="password" 
+                value={passwordData.new} 
+                onChange={(e) => setPasswordData({...passwordData, new: e.target.value})} 
+                placeholder="New Password" 
+                className="modal-input"
+              />
+              <input 
+                type="password" 
+                value={passwordData.confirm} 
+                onChange={(e) => setPasswordData({...passwordData, confirm: e.target.value})} 
+                placeholder="Confirm Password" 
+                className="modal-input"
+              />
+              <div style={{display: 'flex', gap: '1rem', marginTop: '1.5rem'}}>
+                <button className="modal-btn primary" onClick={handlePasswordSubmit}>Change</button>
+                <button className="modal-btn secondary" onClick={() => setShowPasswordModal(false)}>Cancel</button>
+              </div>
             </div>
           </div>
         )}
