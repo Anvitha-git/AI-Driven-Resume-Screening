@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
-import CustomChatbot from './CustomChatbot';
 import { useNavigate } from 'react-router-dom';
 import './Dashboard.css';
 
@@ -18,26 +17,10 @@ function CandidateDashboard() {
     document.documentElement.setAttribute('data-theme', newTheme);
   };
 
-  const [showSideDrawer, setShowSideDrawer] = useState(false);
-  const [activePage, setActivePage] = useState('jobs');
   const navigate = useNavigate();
-
-  const [supportMessage, setSupportMessage] = useState('');
-  const [showSupportModal, setShowSupportModal] = useState(false);
-  const [showBugReportModal, setShowBugReportModal] = useState(false);
-  const [bugDescription, setBugDescription] = useState('');
-
-  const [showEditNameModal, setShowEditNameModal] = useState(false);
-  const [newName, setNewName] = useState('');
-  const [nameError, setNameError] = useState('');
-  const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [passwordData, setPasswordData] = useState({ current: '', new: '', confirm: '' });
 
-  const [notificationPrefs, setNotificationPrefs] = useState({
-    emailNotifications: true,
-    statusUpdates: true,
-    jobAlerts: true
-  });
+
 
   const [theme, setTheme] = useState(localStorage.getItem('theme') || 'light');
 
@@ -98,8 +81,6 @@ function CandidateDashboard() {
     }
   }, []);
 
-  const CHATBOT_ALWAYS_VISIBLE = false;
-
   const [jobs, setJobs] = useState([]);
   const [selectedFiles, setSelectedFiles] = useState({});
   const [applications, setApplications] = useState([]);
@@ -129,25 +110,6 @@ function CandidateDashboard() {
       setUnreadNotifCount(0);
     }
   }, [showNotifDropdown]);
-
-  const loadNotificationPreferences = useCallback(async () => {
-    try {
-      const response = await withAuth(async (token) => {
-        return await axios.get(`${API_BASE}/preferences`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-      });
-      if (response.data) {
-        setNotificationPrefs({
-          emailNotifications: response.data.email_notifications ?? true,
-          statusUpdates: response.data.status_updates ?? true,
-          jobAlerts: response.data.job_alerts ?? true
-        });
-      }
-    } catch (error) {
-      console.log('Could not load preferences, using defaults');
-    }
-  }, [withAuth]);
 
   useEffect(() => {
     const userId = localStorage.getItem('user_id');
@@ -193,8 +155,6 @@ function CandidateDashboard() {
       }
     }).catch((err) => console.error('Error fetching notifications:', err));
 
-    loadNotificationPreferences();
-
     const handleBeforeUnload = () => {
       localStorage.removeItem('token');
     };
@@ -203,7 +163,7 @@ function CandidateDashboard() {
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
-  }, [navigate, withAuth, loadNotificationPreferences]);
+  }, [navigate, withAuth]);
 
   const handleFileChange = (jd_id) => (e) => {
     const file = e.target.files?.[0] || null;
@@ -242,13 +202,6 @@ function CandidateDashboard() {
 
   const hasAlreadyApplied = (jd_id) => {
     return applications.some((app) => app.jd_id === jd_id);
-  };
-
-  const hasOpenApplication = () => {
-    return applications.some(app => {
-      const job = jobs.find(j => j.jd_id === app.jd_id);
-      return job && job.status !== 'closed';
-    });
   };
 
   const handleUpload = async (jd_id) => {
@@ -343,13 +296,6 @@ function CandidateDashboard() {
     navigate('/', { replace: true });
   };
 
-  const handleEditName = () => {
-    const currentName = localStorage.getItem('name') || '';
-    setNewName(currentName);
-    setNameError('');
-    setShowEditNameModal(true);
-  };
-
   const handleNameSubmit = async () => {
     if (!newName.trim()) {
       setNameError('Name cannot be empty');
@@ -373,30 +319,6 @@ function CandidateDashboard() {
       console.error('Error updating name:', error);
       setNameError(error.response?.data?.detail || 'Failed to update name');
     }
-  };
-
-  const updateNotificationPref = async (prefKey, value) => {
-    const newPrefs = { ...notificationPrefs, [prefKey]: value };
-    setNotificationPrefs(newPrefs);
-
-    try {
-      await withAuth(async (token) => {
-        return await axios.put(`${API_BASE}/preferences`, {
-          email_notifications: newPrefs.emailNotifications,
-          status_updates: newPrefs.statusUpdates,
-          job_alerts: newPrefs.jobAlerts
-        }, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-      });
-    } catch (error) {
-      console.error('Failed to update preferences:', error);
-      setNotificationPrefs({ ...notificationPrefs });
-    }
-  };
-
-  const handleChangePassword = () => {
-    setShowPasswordModal(true);
   };
 
   const handlePasswordSubmit = async () => {
