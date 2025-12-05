@@ -1396,6 +1396,12 @@ async def get_resume_url(resume_path: str, user=Depends(get_current_user)):
         raise HTTPException(status_code=500, detail=f"Failed to generate resume URL: {str(e)}")
 
 
+if __name__ == "__main__":
+    import uvicorn
+    port = int(os.getenv("PORT", 8000))
+    uvicorn.run(app, host="0.0.0.0", port=port)
+
+
 
 
 
