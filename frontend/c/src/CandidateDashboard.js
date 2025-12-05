@@ -7,9 +7,6 @@ import './Dashboard.css';
 const API_BASE = process.env.REACT_APP_BACKEND_URL;
 
 function CandidateDashboard() {
-  const [showAlertModal, setShowAlertModal] = useState(false);
-  const [alertMessage, setAlertMessage] = useState('');
-  const [alertType, setAlertType] = useState('success');
   const [theme, setTheme] = useState(localStorage.getItem('theme') || 'light');
   const [jobs, setJobs] = useState([]);
   const [selectedFiles, setSelectedFiles] = useState({});
@@ -26,14 +23,20 @@ function CandidateDashboard() {
   const [nameError, setNameError] = useState('');
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [passwordData, setPasswordData] = useState({ current: '', new: '', confirm: '' });
+  const [showAlertModal, setShowAlertModal] = useState(false);
+  const [alertMessage, setAlertMessage] = useState('');
+  const [alertType, setAlertType] = useState('success');
 
   const navigate = useNavigate();
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+  }, [theme]);
 
   const handleThemeToggle = () => {
     const newTheme = theme === 'light' ? 'dark' : 'light';
     setTheme(newTheme);
     localStorage.setItem('theme', newTheme);
-    document.documentElement.setAttribute('data-theme', newTheme);
   };
 
   const getAccessToken = () => localStorage.getItem('access_token') || localStorage.getItem('token');
@@ -68,169 +71,117 @@ function CandidateDashboard() {
           token = getAccessToken();
           return await requestFn(token);
         }
-        localStorage.removeItem('token');
-        localStorage.removeItem('access_token');
-        localStorage.removeItem('refresh_token');
-        localStorage.removeItem('user_id');
-        localStorage.removeItem('role');
-        localStorage.removeItem('email');
+        localStorage.clear();
         navigate('/login');
       }
       throw err;
     }
   }, [navigate, tryRefreshToken]);
 
-  React.useEffect(() => {
-    if (window.history && window.history.pushState) {
-      window.history.pushState(null, '', window.location.href);
-      const handlePopState = () => {
-        window.history.pushState(null, '', window.location.href);
-      };
-      window.addEventListener('popstate', handlePopState);
-      return () => window.removeEventListener('popstate', handlePopState);
-    }
-  }, []);
-
   useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (showNotifDropdown && !event.target.closest('.dashboard-bell-container') && !event.target.closest('.dashboard-notifications-dropdown')) {
+    const handleClickOutside = (e) => {
+      if (showNotifDropdown && !e.target.closest('.dashboard-bell-container')) {
         setShowNotifDropdown(false);
       }
-      if (showProfileDropdown && !event.target.closest('.dashboard-profile-container')) {
+      if (showProfileDropdown && !e.target.closest('.dashboard-profile-container')) {
         setShowProfileDropdown(false);
       }
     };
-
     document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showNotifDropdown, showProfileDropdown]);
 
   useEffect(() => {
-    if (showNotifDropdown) {
-      setUnreadNotifCount(0);
-    }
+    if (showNotifDropdown) setUnreadNotifCount(0);
   }, [showNotifDropdown]);
 
   useEffect(() => {
     const userId = localStorage.getItem('user_id');
-    const token = localStorage.getItem('access_token') || localStorage.getItem('token');
+    const token = getAccessToken();
     if (!userId || !token) {
       navigate('/login');
       return;
     }
 
-    const chatUserId = localStorage.getItem('chat_user_id');
-    if (!chatUserId || chatUserId !== userId) {
-      localStorage.setItem('chat_user_id', userId);
-    }
-
     withAuth(async (token) => {
-      const res = await axios.get(`${API_BASE}/jobs`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      setJobs(res.data || []);
-    }).catch((err) => {
-      console.error('Error fetching jobs:', err);
-      setAlertMessage('Failed to load jobs');
-      setAlertType('error');
-      setShowAlertModal(true);
-    });
-
-    withAuth(async (token) => {
-      const res = await axios.get(`${API_BASE}/applications/${userId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      setApplications(res.data || []);
-    }).catch((err) => {
-      console.error('Error fetching applications:', err);
-    });
-
-    withAuth(async (token) => {
-      const res = await axios.get(`${API_BASE}/notifications/${userId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      setNotifications(res.data || []);
-      if (res.data && res.data.length > 0) {
-        setUnreadNotifCount(res.data.length);
+      try {
+        const res = await axios.get(`${API_BASE}/jobs`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        setJobs(res.data || []);
+      } catch (err) {
+        setAlertMessage('Failed to load jobs: ' + (err.response?.data?.detail || err.message));
+        setAlertType('error');
+        setShowAlertModal(true);
       }
-    }).catch((err) => console.error('Error fetching notifications:', err));
+    });
 
-    const handleBeforeUnload = () => {
-      localStorage.removeItem('token');
-    };
-    window.addEventListener('beforeunload', handleBeforeUnload);
+    withAuth(async (token) => {
+      try {
+        const res = await axios.get(`${API_BASE}/applications/${userId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        setApplications(res.data || []);
+      } catch (err) {
+        console.error('Failed to load applications:', err);
+      }
+    });
 
-    return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-    };
+    withAuth(async (token) => {
+      try {
+        const res = await axios.get(`${API_BASE}/notifications/${userId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        setNotifications(res.data || []);
+        setUnreadNotifCount(res.data?.length || 0);
+      } catch (err) {
+        console.error('Failed to load notifications:', err);
+      }
+    });
+
   }, [navigate, withAuth]);
 
   const handleFileChange = (jd_id) => (e) => {
-    const file = e.target.files?.[0] || null;
-    if (!file) {
-      setSelectedFiles((prev) => ({ ...prev, [jd_id]: null }));
-      return;
-    }
+    const file = e.target.files?.[0];
+    if (!file) return;
 
-    const allowedTypes = [
-      'application/pdf',
-      'application/msword',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      'image/png',
-      'image/jpeg'
-    ];
-
+    const allowedTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'image/png', 'image/jpeg'];
     if (!allowedTypes.includes(file.type)) {
-      setAlertMessage('Invalid file type. Please upload PDF, DOC, DOCX, PNG, or JPG.');
+      setAlertMessage('Invalid file type. Use PDF, DOC, DOCX, PNG, or JPG.');
       setAlertType('error');
       setShowAlertModal(true);
-      e.target.value = '';
       return;
     }
-
-    const maxSizeInMB = 10;
-    if (file.size > maxSizeInMB * 1024 * 1024) {
-      setAlertMessage(`File size exceeds ${maxSizeInMB}MB limit.`);
+    if (file.size > 10 * 1024 * 1024) {
+      setAlertMessage('File exceeds 10MB limit.');
       setAlertType('error');
       setShowAlertModal(true);
-      e.target.value = '';
       return;
     }
-
-    setSelectedFiles((prev) => ({ ...prev, [jd_id]: file }));
+    setSelectedFiles(prev => ({ ...prev, [jd_id]: file }));
   };
 
-  const hasAlreadyApplied = (jd_id) => {
-    return applications.some((app) => app.jd_id === jd_id);
-  };
+  const hasAlreadyApplied = (jd_id) => applications.some(app => app.jd_id === jd_id);
 
   const handleUpload = async (jd_id) => {
     if (hasAlreadyApplied(jd_id)) {
-      setAlertMessage('You have already applied to this job.');
+      setAlertMessage('Already applied to this job.');
       setAlertType('error');
       setShowAlertModal(true);
-      return;
-    }
-
-    const usedToken = getAccessToken();
-    console.log('[UPLOAD] Starting upload process');
-    console.log('[UPLOAD] Token exists:', !!usedToken);
-
-    if (!usedToken) {
-      setAlertMessage('No token found. Please login again.');
-      setAlertType('error');
-      setShowAlertModal(true);
-      navigate('/login');
       return;
     }
 
     const file = selectedFiles[jd_id];
     if (!file) {
-      setAlertMessage('Please select a file first.');
+      setAlertMessage('Please select a file.');
       setAlertType('error');
       setShowAlertModal(true);
+      return;
+    }
+
+    const token = getAccessToken();
+    if (!token) {
+      navigate('/login');
       return;
     }
 
@@ -239,164 +190,46 @@ function CandidateDashboard() {
     formData.append('file', file);
 
     try {
-      console.log('[UPLOAD] Sending request to backend:', `${API_BASE}/upload-resume/${jd_id}`);
-      const resp = await withAuth(async (token) => (
-        axios.post(
-          `${API_BASE}/upload-resume/${jd_id}`,
-          formData,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-              refresh_token: localStorage.getItem('refresh_token') || '',
-            },
-          }
-        )
-      ));
-      console.log('[UPLOAD] Success:', resp.data);
+      await withAuth(async (token) => {
+        const resp = await axios.post(`${API_BASE}/upload-resume/${jd_id}`, formData, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        return resp;
+      });
+
       setAlertMessage('Resume uploaded successfully!');
       setAlertType('success');
       setShowAlertModal(true);
+      setSelectedFiles(prev => ({ ...prev, [jd_id]: null }));
 
       const userId = localStorage.getItem('user_id');
-      localStorage.setItem('current_jd_id', jd_id);
-      localStorage.setItem('chat_user_id', userId);
-
-      setSelectedFiles((prev) => ({ ...prev, [jd_id]: null }));
-
-      if (userId) {
-        withAuth(async (token) => {
-          const res = await axios.get(`${API_BASE}/applications/${userId}`, {
-            headers: { Authorization: `Bearer ${token}` },
-          });
-          setApplications(res.data || []);
-        }).catch((err) => console.error('Error refreshing applications:', err));
-      }
+      withAuth(async (token) => {
+        const res = await axios.get(`${API_BASE}/applications/${userId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        setApplications(res.data || []);
+      });
     } catch (error) {
-      console.error('[UPLOAD] Error:', error);
-      if (!error.response) {
-        setAlertMessage('Upload failed: Network error. Check backend connection.');
-        setAlertType('error');
-        setShowAlertModal(true);
-      } else {
-        setAlertMessage('Upload failed: ' + (error.response.data?.detail || error.message));
-        setAlertType('error');
-        setShowAlertModal(true);
-      }
+      setAlertMessage('Upload failed: ' + (error.response?.data?.detail || error.message));
+      setAlertType('error');
+      setShowAlertModal(true);
     } finally {
       setUploadingJob(null);
     }
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('refresh_token');
-    localStorage.removeItem('user_id');
-    localStorage.removeItem('role');
-    localStorage.removeItem('email');
-    localStorage.removeItem('name');
+    localStorage.clear();
     navigate('/', { replace: true });
-  };
-
-  const handleEditName = () => {
-    const currentName = localStorage.getItem('name') || '';
-    setNewName(currentName);
-    setNameError('');
-    setShowEditNameModal(true);
-  };
-
-  const handleNameSubmit = async () => {
-    if (!newName.trim()) {
-      setNameError('Name cannot be empty');
-      return;
-    }
-
-    try {
-      const token = getAccessToken();
-      await axios.put(`${API_BASE}/update-name`, 
-        { name: newName.trim() },
-        { headers: { Authorization: `Bearer ${token}` }}
-      );
-
-      localStorage.setItem('name', newName.trim());
-      setShowEditNameModal(false);
-      setNameError('');
-      setAlertMessage('Name updated successfully!');
-      setAlertType('success');
-      setShowAlertModal(true);
-    } catch (error) {
-      console.error('Error updating name:', error);
-      setNameError(error.response?.data?.detail || 'Failed to update name');
-    }
-  };
-
-  const handleChangePassword = () => {
-    setShowPasswordModal(true);
-  };
-
-  const handlePasswordSubmit = async () => {
-    if (!passwordData.current || !passwordData.new || !passwordData.confirm) {
-      setAlertMessage('Please fill in all password fields');
-      setAlertType('error');
-      setShowAlertModal(true);
-      return;
-    }
-    if (passwordData.new !== passwordData.confirm) {
-      setAlertMessage('New passwords do not match');
-      setAlertType('error');
-      setShowAlertModal(true);
-      return;
-    }
-    if (passwordData.new.length < 6) {
-      setAlertMessage('Password must be at least 6 characters long');
-      setAlertType('error');
-      setShowAlertModal(true);
-      return;
-    }
-
-    try {
-      const token = getAccessToken();
-      await axios.post(`${API_BASE}/change-password`, {
-        current_password: passwordData.current,
-        new_password: passwordData.new
-      }, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-
-      setAlertMessage('Password changed successfully!');
-      setAlertType('success');
-      setShowAlertModal(true);
-      setShowPasswordModal(false);
-      setPasswordData({ current: '', new: '', confirm: '' });
-    } catch (error) {
-      if (error.response?.status === 401) {
-        setAlertMessage('Current password is incorrect');
-        setAlertType('error');
-        setShowAlertModal(true);
-      } else if (error.response?.status === 404) {
-        setAlertMessage('Password change feature coming soon!');
-        setAlertType('success');
-        setShowAlertModal(true);
-        setShowPasswordModal(false);
-        setPasswordData({ current: '', new: '', confirm: '' });
-      } else {
-        setAlertMessage('Error changing password. Please try again later.');
-        setAlertType('error');
-        setShowAlertModal(true);
-      }
-    }
   };
 
   const handleRefreshJobs = () => {
     const userId = localStorage.getItem('user_id');
-
     withAuth(async (token) => {
       const res = await axios.get(`${API_BASE}/jobs`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setJobs(res.data || []);
-    }).catch((err) => {
-      console.error('Error refreshing jobs:', err);
     });
 
     if (userId) {
@@ -405,57 +238,18 @@ function CandidateDashboard() {
           headers: { Authorization: `Bearer ${token}` },
         });
         setApplications(res.data || []);
-      }).catch((err) => {
-        console.error('Error refreshing applications:', err);
       });
-
-      withAuth(async (token) => {
-        const res = await axios.get(`${API_BASE}/notifications/${userId}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        setNotifications(res.data || []);
-      }).catch((err) => console.error('Error refreshing notifications:', err));
     }
   };
 
-  function formatDateSafe(dateStr) {
-    if (!dateStr) return '';
-    const parts = dateStr.split(/[-T:]/);
-    if (parts.length >= 3) {
-      const year = parts[0];
-      const month = parts[1];
-      const day = parts[2];
-      if (year && month && day) {
-        return `${day}/${month}/${year}`;
-      }
-    }
-    const d = new Date(dateStr);
-    if (isNaN(d.getTime())) return '';
-    return d.toLocaleDateString();
-  }
-
-  function getApplicationStatusMeta(statusRaw) {
-    const s = (statusRaw || '').toString().toLowerCase().trim();
-    if (s === 'selected') {
-      return { label: 'Selected', className: 'status-selected' };
-    }
-    if (s === 'rejected') {
-      return { label: 'Rejected', className: 'status-rejected' };
-    }
-    if (s === 'pending') {
-      return { label: 'Pending', className: 'status-pending' };
-    }
-    if (["submitted", "applied"].includes(s)) {
-      return { label: 'Submitted', className: 'status-submitted' };
-    }
-    return { label: statusRaw || 'Submitted', className: 'status-submitted' };
-  }
+  const handleCloseSidebar = () => setShowSideDrawer(false);
 
   return (
     <div className="dashboard-root">
+      {/* HEADER */}
       <div className="dashboard-header">
         <div className="dashboard-header-left">
-          <button className="dashboard-hamburger" onClick={() => setShowSideDrawer(true)} aria-label="Open Menu">
+          <button className="dashboard-hamburger" onClick={() => setShowSideDrawer(true)} aria-label="Menu">
             <span className="hamburger-line"></span>
             <span className="hamburger-line"></span>
             <span className="hamburger-line"></span>
@@ -470,7 +264,7 @@ function CandidateDashboard() {
             </svg>
             {unreadNotifCount > 0 && <span className="dashboard-bell-badge">{unreadNotifCount}</span>}
           </div>
-          <button aria-label="Toggle theme" onClick={handleThemeToggle} className="theme-toggle-btn">
+          <button onClick={handleThemeToggle} className="theme-toggle-btn" aria-label="Theme">
             {theme === 'light' ? (
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2"><circle cx="12" cy="12" r="5"/></svg>
             ) : (
@@ -486,24 +280,44 @@ function CandidateDashboard() {
             </div>
             {showProfileDropdown && (
               <div className="dashboard-profile-dropdown">
-                <button className="dashboard-profile-logout" onClick={handleLogout}>
-                  Logout
-                </button>
+                <button className="dashboard-profile-logout" onClick={handleLogout}>Logout</button>
               </div>
             )}
           </div>
         </div>
       </div>
 
+      {/* SIDEBAR DRAWER */}
+      {showSideDrawer && (
+        <div className="sidebar-overlay" onClick={handleCloseSidebar}>
+          <div className="sidebar-drawer" onClick={e => e.stopPropagation()}>
+            <button className="sidebar-close" onClick={handleCloseSidebar}>&times;</button>
+            <nav className="sidebar-nav">
+              <button 
+                className={`sidebar-item ${activePage === 'jobs' ? 'active' : ''}`}
+                onClick={() => { setActivePage('jobs'); handleCloseSidebar(); }}
+              >
+                📋 Available Jobs
+              </button>
+              <button 
+                className={`sidebar-item ${activePage === 'history' ? 'active' : ''}`}
+                onClick={() => { setActivePage('history'); handleCloseSidebar(); }}
+              >
+                📄 My Applications
+              </button>
+            </nav>
+          </div>
+        </div>
+      )}
+
+      {/* MAIN CONTENT */}
       <div className="dashboard-container">
         {activePage === 'jobs' && (
           <div className="dashboard-card">
-            <h2 className="dashboard-card-title">Job Postings</h2>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1rem' }}>
-              <button className="dashboard-btn-secondary" onClick={handleRefreshJobs}>
-                Refresh
-              </button>
-            </div>
+            <h2 className="dashboard-card-title">Available Jobs</h2>
+            <button className="dashboard-btn-secondary" onClick={handleRefreshJobs} style={{ marginBottom: '1rem' }}>
+              Refresh
+            </button>
             <div className="dashboard-table-container">
               <table className="dashboard-table">
                 <thead>
@@ -523,13 +337,22 @@ function CandidateDashboard() {
                         <td>{Array.isArray(job.requirements) ? job.requirements.join(', ') : job.requirements}</td>
                         <td>
                           {hasAlreadyApplied(job.jd_id) ? (
-                            <div style={{ color: '#22543d', background: '#c6f6d5', padding: '0.6rem 1rem', borderRadius: '8px' }}>
-                              ✓ Already Applied
+                            <div style={{ color: '#22543d', background: '#c6f6d5', padding: '0.5rem', borderRadius: '4px', textAlign: 'center' }}>
+                              ✓ Applied
                             </div>
                           ) : (
-                            <div className="dashboard-file-input-container">
-                              <input className="dashboard-file-input" type="file" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg" onChange={handleFileChange(job.jd_id)} />
-                              <button className="dashboard-btn-primary" onClick={() => handleUpload(job.jd_id)} disabled={!selectedFiles[job.jd_id] || uploadingJob === job.jd_id}>
+                            <div style={{ display: 'flex', gap: '0.5rem' }}>
+                              <input 
+                                type="file" 
+                                onChange={handleFileChange(job.jd_id)} 
+                                accept=".pdf,.doc,.docx,.png,.jpg,.jpeg"
+                                style={{ flex: 1 }}
+                              />
+                              <button 
+                                onClick={() => handleUpload(job.jd_id)} 
+                                disabled={!selectedFiles[job.jd_id] || uploadingJob === job.jd_id}
+                                style={{ padding: '0.5rem 1rem', cursor: 'pointer' }}
+                              >
                                 {uploadingJob === job.jd_id ? 'Uploading...' : 'Upload'}
                               </button>
                             </div>
@@ -539,8 +362,8 @@ function CandidateDashboard() {
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={4} className="dashboard-empty-state">
-                        <div className="dashboard-empty-state-icon">📋</div>
+                      <td colSpan="4" style={{ textAlign: 'center', padding: '2rem' }}>
+                        <div style={{ fontSize: '2rem', marginBottom: '1rem' }}>📋</div>
                         <div>No jobs available</div>
                       </td>
                     </tr>
@@ -561,28 +384,25 @@ function CandidateDashboard() {
                     <tr>
                       <th>Job Title</th>
                       <th>Requirements</th>
-                      <th>Application Date</th>
+                      <th>Applied</th>
                       <th>Status</th>
                     </tr>
                   </thead>
                   <tbody>
                     {applications.map((app) => {
-                      const key = app.resume_id || app.id || `${app.jd_id}-${app.user_id}`;
                       const title = app.job_descriptions?.title || 'Job';
                       const requirements = app.job_descriptions?.requirements 
                         ? (Array.isArray(app.job_descriptions.requirements) 
                           ? app.job_descriptions.requirements.join(', ') 
                           : app.job_descriptions.requirements)
                         : '-';
-                      const applied = formatDateSafe(app.created_at) || '-';
-                      const rawStatus = app.resumes?.decision || app.status || 'submitted';
-                      const meta = getApplicationStatusMeta(rawStatus);
+                      const status = app.resumes?.decision || 'Submitted';
                       return (
-                        <tr key={key}>
+                        <tr key={app.resume_id || app.id}>
                           <td><strong>{title}</strong></td>
                           <td>{requirements}</td>
-                          <td>{applied}</td>
-                          <td><span className={`status-pill ${meta.className}`}>{meta.label}</span></td>
+                          <td>{new Date(app.created_at).toLocaleDateString()}</td>
+                          <td><span style={{ padding: '0.25rem 0.75rem', borderRadius: '4px', backgroundColor: status === 'selected' ? '#10b981' : status === 'rejected' ? '#ef4444' : '#f59e0b', color: 'white' }}>{status}</span></td>
                         </tr>
                       );
                     })}
@@ -590,69 +410,23 @@ function CandidateDashboard() {
                 </table>
               </div>
             ) : (
-              <div className="dashboard-empty-state">
-                <div className="dashboard-empty-state-icon">📄</div>
+              <div style={{ textAlign: 'center', padding: '2rem' }}>
+                <div style={{ fontSize: '2rem', marginBottom: '1rem' }}>📄</div>
                 <div>No applications yet</div>
               </div>
             )}
           </div>
         )}
 
+        {/* ALERTS */}
         {showAlertModal && (
           <div className="modal-overlay" onClick={() => setShowAlertModal(false)}>
-            <div className="modal-content" onClick={e => e.stopPropagation()} style={{maxWidth: '400px', padding: '32px', textAlign: 'center'}}>
-              <div style={{width: '64px', height: '64px', borderRadius: '50%', backgroundColor: alertType === 'success' ? '#10b981' : '#ef4444', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px', color: 'white', fontSize: '32px', fontWeight: 'bold'}}>
-                {alertType === 'success' ? '✓' : '!'}
+            <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '400px', padding: '2rem', textAlign: 'center' }}>
+              <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>
+                {alertType === 'success' ? '✅' : '❌'}
               </div>
-              <p style={{margin: 0, fontSize: '16px', lineHeight: '1.5'}}>{alertMessage}</p>
-              <button className="modal-btn primary" onClick={() => setShowAlertModal(false)} style={{marginTop: '24px', padding: '10px 32px'}}>OK</button>
-            </div>
-          </div>
-        )}
-
-        {showEditNameModal && (
-          <div className="modal-overlay" onClick={() => setShowEditNameModal(false)}>
-            <div className="modal-content" onClick={e => e.stopPropagation()}>
-              <h2>Edit Name</h2>
-              <input type="text" value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Enter new name" className="modal-input" />
-              {nameError && <p style={{color: '#ef4444', marginTop: '0.5rem'}}>{nameError}</p>}
-              <div style={{display: 'flex', gap: '1rem', marginTop: '1.5rem'}}>
-                <button className="modal-btn primary" onClick={handleNameSubmit}>Save</button>
-                <button className="modal-btn secondary" onClick={() => setShowEditNameModal(false)}>Cancel</button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {showPasswordModal && (
-          <div className="modal-overlay" onClick={() => setShowPasswordModal(false)}>
-            <div className="modal-content" onClick={e => e.stopPropagation()}>
-              <h2>Change Password</h2>
-              <input 
-                type="password" 
-                value={passwordData.current} 
-                onChange={(e) => setPasswordData({...passwordData, current: e.target.value})} 
-                placeholder="Current Password" 
-                className="modal-input"
-              />
-              <input 
-                type="password" 
-                value={passwordData.new} 
-                onChange={(e) => setPasswordData({...passwordData, new: e.target.value})} 
-                placeholder="New Password" 
-                className="modal-input"
-              />
-              <input 
-                type="password" 
-                value={passwordData.confirm} 
-                onChange={(e) => setPasswordData({...passwordData, confirm: e.target.value})} 
-                placeholder="Confirm Password" 
-                className="modal-input"
-              />
-              <div style={{display: 'flex', gap: '1rem', marginTop: '1.5rem'}}>
-                <button className="modal-btn primary" onClick={handlePasswordSubmit}>Change</button>
-                <button className="modal-btn secondary" onClick={() => setShowPasswordModal(false)}>Cancel</button>
-              </div>
+              <p>{alertMessage}</p>
+              <button onClick={() => setShowAlertModal(false)} style={{ marginTop: '1rem', padding: '0.5rem 1rem', cursor: 'pointer' }}>OK</button>
             </div>
           </div>
         )}
