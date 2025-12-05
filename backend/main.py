@@ -8,8 +8,10 @@ from pydantic import BaseModel
 from typing import List, Optional, Dict
 import uuid
 import logging
+from ai_processor import extract_text, extract_structured_data, rank_resumes, extract_skills_from_text
 import requests
 from urllib.parse import urlparse
+from email_service import send_decision_email
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -18,51 +20,16 @@ load_dotenv()
 
 app = FastAPI()
 
-# Lazy-load AI modules only when needed (fast startup)
-_ai_processor_cache = {}
-_email_service_cache = {}
-
-def get_ai_processor():
-    """Lazy-load AI processor module on first use"""
-    if 'module' not in _ai_processor_cache:
-        from ai_processor import extract_text, extract_structured_data, rank_resumes, extract_skills_from_text
-        _ai_processor_cache['module'] = {
-            'extract_text': extract_text,
-            'extract_structured_data': extract_structured_data,
-            'rank_resumes': rank_resumes,
-            'extract_skills_from_text': extract_skills_from_text
-        }
-    return _ai_processor_cache['module']
-
-def get_email_service():
-    """Lazy-load email service module on first use"""
-    if 'module' not in _email_service_cache:
-        from email_service import send_decision_email
-        _email_service_cache['module'] = send_decision_email
-    return _email_service_cache['module']
-
-@app.on_event("startup")
-async def startup_event():
-    """Start server immediately - don't wait for model loading"""
-    logging.info("✓ FastAPI server starting on port $PORT")
-    logging.info("✓ AI models will be loaded on first request (lazy-loading)")
-
 # Create two separate clients:
 # - supabase_auth: used ONLY for auth operations (sign up/in, token validation)
 # - supabase_service: used for storage and database operations with the service role key (bypasses RLS)
-try:
-    SUPABASE_URL = os.getenv("SUPABASE_URL")
-    # Prefer explicit variables if present; fall back to SUPABASE_KEY for service role
-    SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY")
-    SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY") or SUPABASE_SERVICE_ROLE_KEY
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+# Prefer explicit variables if present; fall back to SUPABASE_KEY for service role
+SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY")
+SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY") or SUPABASE_SERVICE_ROLE_KEY
 
-    supabase_auth: Client = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
-    supabase_service: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
-    logging.info("Supabase clients initialized successfully")
-except Exception as e:
-    logging.error(f"Failed to initialize Supabase clients: {e}")
-    supabase_auth = None
-    supabase_service = None
+supabase_auth: Client = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
+supabase_service: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
 # Enable CORS
 # Allow frontend from localhost and local network during development
@@ -73,8 +40,6 @@ app.add_middleware(
         "http://127.0.0.1:3000",
         # Add your LAN IP (React dev server) if accessed from another machine
         "http://10.195.224.144:3000",
-        # Deployed frontend (Netlify)
-        "https://ai-resumescreening.netlify.app",
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -82,14 +47,6 @@ app.add_middleware(
 )
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
-
-# Health check for platform port scanning (Render/Cloud)
-@app.get("/health")
-async def health():
-    return {
-        "status": "ok",
-        "supabase": "connected" if supabase_auth and supabase_service else "not configured"
-    }
 
 # Pydantic models
 class JobPosting(BaseModel):
@@ -482,23 +439,11 @@ async def refresh_token_endpoint(body: RefreshRequest):
 
 ## Demo login endpoints removed
 
-# Pre-flight check: verify backend can insert jobs
-@app.get("/health/jobs-ready")
-async def check_jobs_ready():
-    try:
-        if not supabase_service:
-            return {"ready": False, "message": "Supabase service client not initialized"}
-        return {"ready": True, "message": "Backend ready for job postings"}
-    except Exception as e:
-        return {"ready": False, "message": str(e)}
-
 # Job postings
 @app.post("/jobs", response_model=JobPosting)
 async def create_job(job: JobPosting, user=Depends(get_current_user)):
-    logging.info(f"[CREATE_JOB] User {user.id} (role={user.role}) posting job: {job.title}")
     if user.role not in ["HR", "demo_hr"]:
-        logging.warning(f"[CREATE_JOB] Unauthorized: user role is {user.role}")
-        raise HTTPException(status_code=403, detail="Not authorized: only HR can post jobs")
+        raise HTTPException(status_code=403, detail="Not authorized")
     try:
         # Ensure user exists in users table (for foreign key constraint)
         try:
@@ -519,8 +464,7 @@ async def create_job(job: JobPosting, user=Depends(get_current_user)):
         
         if len(job.requirements) == 1 and len(job.requirements[0]) > 50:
             # It's likely a paragraph, extract skills
-            ai_processor = get_ai_processor()
-            extracted_skills = ai_processor['extract_skills_from_text'](job.requirements[0])
+            extracted_skills = extract_skills_from_text(job.requirements[0])
             processed_requirements = extracted_skills if extracted_skills else job.requirements
         
         data = supabase_service.table("job_descriptions").insert({
@@ -592,17 +536,17 @@ async def upload_resume(
     token: str = Depends(oauth2_scheme),
     refresh_token: str = Header(None)
 ):
+    if user.role not in ["job_seeker", "demo_candidate", "Candidate"]:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    if file.content_type not in [
+        "application/pdf",
+        "application/msword",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "image/png",
+        "image/jpeg"
+    ]:
+        raise HTTPException(status_code=400, detail="Invalid file type")
     try:
-        if user.role not in ["job_seeker", "demo_candidate", "Candidate"]:
-            raise HTTPException(status_code=403, detail="Not authorized")
-        if file.content_type not in [
-            "application/pdf",
-            "application/msword",
-            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            "image/png",
-            "image/jpeg"
-        ]:
-            raise HTTPException(status_code=400, detail="Invalid file type")
         file_content = await file.read()
         file_name = f"{uuid.uuid4()}_{file.filename}"
         
@@ -638,10 +582,8 @@ async def upload_resume(
         temp_file = f"temp_{file_name}"
         with open(temp_file, "wb") as f:
             f.write(file_content)
-        
-        ai_processor = get_ai_processor()
-        text = ai_processor['extract_text'](temp_file, file.content_type)
-        structured_data = ai_processor['extract_structured_data'](text)
+        text = extract_text(temp_file, file.content_type)
+        structured_data = extract_structured_data(text)
         
         # Debug logging for resume parsing
         logging.info(f"[RESUME UPLOAD DEBUG] Extracted text length: {len(text)}")
@@ -735,24 +677,14 @@ async def rank_resumes_endpoint(jd_id: str, user=Depends(get_current_user)):
     if user.role not in ["HR", "demo_hr"]:
         raise HTTPException(status_code=403, detail="Not authorized")
     try:
-        # Fetch job description with validation
-        jd_response = supabase_service.table("job_descriptions").select("requirements, weights").eq("jd_id", jd_id).execute()
-        if not jd_response.data or len(jd_response.data) == 0:
-            raise HTTPException(status_code=404, detail="Job description not found")
-        jd = jd_response.data[0]
-        
-        # Fetch resumes for this job
-        resumes_response = supabase_service.table("resumes").select("*").eq("jd_id", jd_id).execute()
-        resumes = resumes_response.data or []
-        if not resumes:
-            raise HTTPException(status_code=404, detail="No resumes found for this job")
+        jd = supabase_service.table("job_descriptions").select("requirements, weights").eq("jd_id", jd_id).execute().data[0]
+        resumes = supabase_service.table("resumes").select("*").eq("jd_id", jd_id).execute().data
         
         # Get weights from JD or use defaults
         weights = jd.get("weights") or {}
         
         # Rank resumes with weights
-        ai_processor = get_ai_processor()
-        scores = ai_processor['rank_resumes'](resumes, jd["requirements"], weights)
+        scores = rank_resumes(resumes, jd["requirements"], weights)
         
         # Update resumes with scores and explanations
         for resume, score in zip(resumes, scores):
@@ -1093,8 +1025,7 @@ async def submit_decisions(jd_id: str, user=Depends(get_current_user)):
             
             # Send email notification (preferences feature removed as columns don't exist)
             if candidate_email:
-                email_service = get_email_service()
-                email_sent = email_service(
+                email_sent = send_decision_email(
                     candidate_email=candidate_email,
                     candidate_name=candidate_name,
                     job_title=job_title,
@@ -1433,12 +1364,6 @@ async def get_resume_url(resume_path: str, user=Depends(get_current_user)):
     except Exception as e:
         logging.exception(f"Error generating signed URL for {resume_path}")
         raise HTTPException(status_code=500, detail=f"Failed to generate resume URL: {str(e)}")
-
-
-if __name__ == "__main__":
-    import uvicorn
-    port = int(os.getenv("PORT", 8000))
-    uvicorn.run(app, host="0.0.0.0", port=port)
 
 
 

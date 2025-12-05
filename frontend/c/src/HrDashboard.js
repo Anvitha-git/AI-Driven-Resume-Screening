@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import './Dashboard.css';
 import './ExplanationModal.css';
-const API_BASE = process.env.REACT_APP_BACKEND_URL;
 
 function HrDashboard() {
       // To show the modal, call:
@@ -18,7 +17,7 @@ function HrDashboard() {
     const refresh_token = localStorage.getItem('refresh_token');
     if (!refresh_token) return false;
     try {
-      const resp = await axios.post(`${API_BASE}/refresh`, { refresh_token });
+      const resp = await axios.post('http://localhost:8000/refresh', { refresh_token });
       const { access_token, refresh_token: new_rt } = resp.data || {};
       if (access_token) {
         localStorage.setItem('access_token', access_token);
@@ -60,64 +59,27 @@ function HrDashboard() {
   const handleJobSubmit = async (e) => {
     e.preventDefault();
     try {
-      // Validate fields
-      if (!newJob.title || !newJob.description || !newJob.requirements) {
-        setAlertType('error');
-        setAlertMessage('Please fill in all required fields');
-        setShowAlertModal(true);
-        return;
-      }
-
-      // Validate deadline
-      if (!newJob.deadline) {
-        setAlertType('error');
-        setAlertMessage('Please select a deadline');
-        setShowAlertModal(true);
-        return;
-      }
-
-      const selectedDate = new Date(newJob.deadline);
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      if (selectedDate <= today) {
-        setAlertType('error');
-        setAlertMessage('Deadline must be after today');
-        setShowAlertModal(true);
-        return;
-      }
-
       // Backend expects requirements: List[str]. Wrap textarea string as a single-item array.
       const jobData = {
-        title: newJob.title.trim(),
-        description: newJob.description.trim(),
-        requirements: newJob.requirements ? [newJob.requirements.trim()] : [],
+        title: newJob.title,
+        description: newJob.description,
+        requirements: newJob.requirements ? [newJob.requirements] : [],
         deadline: newJob.deadline,
         weights: newJob.weights,
       };
-
-      console.log('Submitting job data:', jobData);
-      
-      await withAuth(async (token) => {
-        const response = await axios.post(`${API_BASE}/jobs`, jobData, {
+      await withAuth(async (token) => (
+        axios.post('http://localhost:8000/jobs', jobData, {
           headers: { Authorization: `Bearer ${token}` },
-        });
-        console.log('Job post response:', response);
-        return response;
-      });
-
-      setAlertType('success');
-      setAlertMessage('Job posted successfully!');
-      setShowAlertModal(true);
+        })
+      ));
+      setAlertType('success'); setAlertMessage('Job posted successfully!'); setShowAlertModal(true);
       setNewJob({ title: '', description: '', requirements: '', deadline: '', weights: { skills: 0.4, experience: 0.4, education: 0.2 } });
-      
-      // Refresh jobs list after short delay
-      setTimeout(() => fetchJobs(), 500);
+      fetchJobs();
     } catch (error) {
+      // Surface backend error details if available
+      const msg = error?.response?.data?.detail ? `Failed to post job: ${error.response.data.detail}` : 'Failed to post job';
       console.error('Post job error:', error);
-      const errorMsg = error?.response?.data?.detail || error?.message || 'Failed to post job';
-      setAlertType('error');
-      setAlertMessage(`Error: ${errorMsg}`);
-      setShowAlertModal(true);
+      setAlertType('error'); setAlertMessage(msg); setShowAlertModal(true);
     }
   };
 
@@ -125,67 +87,46 @@ function HrDashboard() {
   const handleRankResumes = async (jdId) => {
     setRankingJob(jdId);
     try {
-      console.log(`[RANK] Starting rank for job ${jdId}`);
-      
       const list = await withAuth(async (token) => {
-        console.log(`[RANK] Calling rank-resumes endpoint for ${jdId}`);
-        const rankResp = await axios.post(`${API_BASE}/rank-resumes/${jdId}`, {}, {
+        await axios.post(`http://localhost:8000/rank-resumes/${jdId}`, {}, {
           headers: { Authorization: `Bearer ${token}` },
         });
-        console.log(`[RANK] Rank response:`, rankResp.data);
-
-        console.log(`[RANK] Fetching ranked resumes for ${jdId}`);
-        const res = await axios.get(`${API_BASE}/resumes/${jdId}`, {
+        const res = await axios.get(`http://localhost:8000/resumes/${jdId}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
-        console.log(`[RANK] Resumes fetched:`, res.data);
         return Array.isArray(res.data) ? res.data : [];
       });
-
-      if (!list || list.length === 0) {
-        setAlertType('warning');
-        setAlertMessage('No resumes found for this job.');
-        setShowAlertModal(true);
-        setRankingJob(null);
-        return;
-      }
       
-      const mapped = list.map((r, idx) => ({
+      const mapped = list.map(r => ({
         id: r.resume_id,
-        rank: idx + 1,
+        rank: r.rank,
         candidate: r.user_email || r.user_id,
-        score: typeof r.score === 'number' ? (r.score * 100).toFixed(1) : r.score || 'N/A',
-        explanation: r.explanation || 'No explanation available',
+        score: typeof r.score === 'number' ? (r.score * 100).toFixed(1) : r.score,
+        explanation: r.explanation,
         file_url: r.file_url,
         resume_id: r.resume_id,
         decision: r.decision || 'pending',
       }));
-      
-      console.log(`[RANK] Mapped ${mapped.length} candidates`);
       setCandidates(mapped);
-      setCurrentJobId(jdId);
+      setCurrentJobId(jdId); // Track the job ID for later submission
       setOpenCandidatesDialog(true);
       
-      // Save to localStorage for persistence
+      // Save to localStorage so dialog persists across page navigation
       localStorage.setItem('hr_candidates_dialog', JSON.stringify({
         isOpen: true,
         jobId: jdId,
         candidatesList: mapped
       }));
       
-      setAlertType('success');
-      setAlertMessage(`Resumes ranked! ${mapped.length} candidate(s) ready for review.`);
-      setShowAlertModal(true);
+      // Note: Dialog stays open until HR submits decisions
+      // Job status will be updated when HR clicks "Submit Decisions"
       
     } catch (error) {
-      console.error('[RANK] Error:', error);
-      const errorMsg = error?.response?.data?.detail || error?.message || 'Failed to rank resumes';
-      setAlertType('error');
-      setAlertMessage(`Rank Error: ${errorMsg}`);
-      setShowAlertModal(true);
-    } finally {
-      setRankingJob(null);
+      console.error('Rank resumes error:', error);
+      const msg = error?.response?.data?.detail ? `Failed to rank resumes: ${error.response.data.detail}` : 'Failed to rank resumes';
+      setAlertType('error'); setAlertMessage(msg); setShowAlertModal(true);
     }
+    setRankingJob(null);
   };
 
   // Handler for opening a job in history
@@ -239,7 +180,7 @@ function HrDashboard() {
     const loadPrefs = async () => {
       try {
         const response = await withAuth(async (token) => {
-          return await axios.get(`${API_BASE}/preferences`, {
+          return await axios.get('http://localhost:8000/preferences', {
             headers: { Authorization: `Bearer ${token}` }
           });
         });
@@ -261,7 +202,7 @@ function HrDashboard() {
     setPreferences(newPrefs);
     try {
       await withAuth(async (token) => {
-        return await axios.put(`${API_BASE}/preferences`, {
+        return await axios.put('http://localhost:8000/preferences', {
           email_notifications: newPrefs.emailNotifications,
           status_updates: newPrefs.statusUpdates,
           job_alerts: newPrefs.jobAlerts,
@@ -402,7 +343,7 @@ function HrDashboard() {
       if (activePage === 'job-postings') {
         try {
           await withAuth(async (token) => {
-            const response = await axios.get(`${API_BASE}/jobs`, {
+            const response = await axios.get('http://localhost:8000/jobs', {
               headers: { Authorization: `Bearer ${token}` },
             });
             
@@ -414,13 +355,13 @@ function HrDashboard() {
       } else if (activePage === 'history') {
         try {
           await withAuth(async (token) => {
-            const response = await axios.get(`${API_BASE}/hr/jobs`, {
+            const response = await axios.get('http://localhost:8000/hr/jobs', {
               headers: { Authorization: `Bearer ${token}` },
             });
             const jobs = response.data || [];
             const jobsWithCandidates = await Promise.all(jobs.map(async (job) => {
               try {
-                const res = await axios.get(`${API_BASE}/hr/jobs/${job.jd_id}/candidates`, {
+                const res = await axios.get(`http://localhost:8000/hr/jobs/${job.jd_id}/candidates`, {
                   headers: { Authorization: `Bearer ${token}` },
                 });
                 return { ...job, candidates: res.data || [] };
@@ -449,7 +390,7 @@ function HrDashboard() {
   const fetchJobs = async () => {
     try {
       await withAuth(async (token) => {
-        const response = await axios.get(`${API_BASE}/jobs`, {
+        const response = await axios.get('http://localhost:8000/jobs', {
           headers: { Authorization: `Bearer ${token}` },
         });
         setJobs(response.data);
@@ -464,7 +405,7 @@ function HrDashboard() {
     try {
       await withAuth(async (token) => {
         console.log('Fetching HR jobs history...');
-        const response = await axios.get(`${API_BASE}/hr/jobs`, {
+        const response = await axios.get('http://localhost:8000/hr/jobs', {
           headers: { Authorization: `Bearer ${token}` },
         });
         console.log('HR jobs response:', response.data);
@@ -472,7 +413,7 @@ function HrDashboard() {
         console.log(`Found ${jobs.length} jobs for this HR`);
         const jobsWithCandidates = await Promise.all(jobs.map(async (job) => {
           try {
-            const res = await axios.get(`${API_BASE}/hr/jobs/${job.jd_id}/candidates`, {
+            const res = await axios.get(`http://localhost:8000/hr/jobs/${job.jd_id}/candidates`, {
               headers: { Authorization: `Bearer ${token}` },
             });
             return { ...job, candidates: res.data || [] };
@@ -491,7 +432,7 @@ function HrDashboard() {
   const fetchCandidatesForJob = async (jdId) => {
     try {
       await withAuth(async (token) => {
-        const response = await axios.get(`${API_BASE}/hr/jobs/${jdId}/candidates`, {
+        const response = await axios.get(`http://localhost:8000/hr/jobs/${jdId}/candidates`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         setHistoryJobCandidates(response.data || []);
@@ -512,7 +453,7 @@ function HrDashboard() {
       }
       
       await withAuth(async (token) => (
-        axios.post(`${API_BASE}/decisions/${resumeId}`, {
+        axios.post(`http://localhost:8000/decisions/${resumeId}`, {
           decision,
           decided_by: userId
         }, {
@@ -561,7 +502,7 @@ function HrDashboard() {
         await withAuth(async (token) => {
           // Call submit-decisions endpoint to send emails and notifications
           const submitResponse = await axios.post(
-            `${API_BASE}/hr/jobs/${currentJobId}/submit-decisions`,
+            `http://localhost:8000/hr/jobs/${currentJobId}/submit-decisions`,
             {},
             { headers: { Authorization: `Bearer ${token}` } }
           );
@@ -570,7 +511,7 @@ function HrDashboard() {
           
           // Update job status to closed
           await axios.patch(
-            `${API_BASE}/jobs/${currentJobId}`,
+            `http://localhost:8000/jobs/${currentJobId}`,
             { status: 'closed' },
             { headers: { Authorization: `Bearer ${token}` } }
           );
@@ -627,7 +568,7 @@ function HrDashboard() {
     
     try {
       const response = await withAuth(async (token) => {
-        return await axios.get(`${API_BASE}/explain-ranking/${resumeId}`, {
+        return await axios.get(`http://localhost:8000/explain-ranking/${resumeId}`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
       });
@@ -669,7 +610,7 @@ function HrDashboard() {
     
     try {
       const token = getAccessToken();
-      await axios.put(`${API_BASE}/update-name`, 
+      await axios.put('http://localhost:8000/update-name', 
         { name: newName.trim() },
         { headers: { Authorization: `Bearer ${token}` }}
       );
@@ -705,7 +646,7 @@ function HrDashboard() {
     
     try {
       const token = getAccessToken();
-      await axios.post(`${API_BASE}/change-password`, {
+      await axios.post('http://localhost:8000/change-password', {
         current_password: passwordData.current,
         new_password: passwordData.new
       }, {
@@ -734,7 +675,7 @@ function HrDashboard() {
       console.log('Starting job export...');
       await withAuth(async (token) => {
         console.log('Fetching jobs from backend...');
-        const response = await axios.get(`${API_BASE}/hr/jobs`, {
+        const response = await axios.get('http://localhost:8000/hr/jobs', {
           headers: { Authorization: `Bearer ${token}` }
         });
         
@@ -790,7 +731,7 @@ function HrDashboard() {
       await withAuth(async (token) => {
         // Get all jobs first
         console.log('Fetching all jobs...');
-        const jobsResponse = await axios.get(`${API_BASE}/hr/jobs`, {
+        const jobsResponse = await axios.get('http://localhost:8000/hr/jobs', {
           headers: { Authorization: `Bearer ${token}` }
         });
         
@@ -807,7 +748,7 @@ function HrDashboard() {
         for (const job of allJobs) {
           try {
             console.log(`Fetching candidates for job: ${job.title}`);
-            const candidatesResponse = await axios.get(`${API_BASE}/hr/jobs/${job.jd_id}/candidates`, {
+            const candidatesResponse = await axios.get(`http://localhost:8000/hr/jobs/${job.jd_id}/candidates`, {
               headers: { Authorization: `Bearer ${token}` }
             });
             const candidates = candidatesResponse.data || [];
@@ -1096,24 +1037,11 @@ function HrDashboard() {
               className="dashboard-input"
               name="deadline"
               type="date" 
-              placeholder="dd/mm/yyyy"
-              min={new Date().toISOString().split('T')[0]}
+              placeholder="mm/dd/yyyy"
               value={newJob.deadline} 
-              onChange={(e) => {
-                const selectedDate = new Date(e.target.value);
-                const today = new Date();
-                today.setHours(0, 0, 0, 0);
-                if (selectedDate < today) {
-                  setAlertType('error');
-                  setAlertMessage('Deadline must be set to a date after today');
-                  setShowAlertModal(true);
-                  return;
-                }
-                setNewJob({ ...newJob, deadline: e.target.value });
-              }}
+              onChange={(e) => setNewJob({ ...newJob, deadline: e.target.value })} 
               required
             />
-            <small style={{ color: '#667eea', marginTop: '0.3rem', display: 'block' }}>Format: dd/mm/yyyy (must be after today)</small>
           </div>
           
           <div style={{ marginTop: '1rem', marginBottom: '0.3rem', fontSize: '0.9rem', fontWeight: '600', color: '#667eea' }}>

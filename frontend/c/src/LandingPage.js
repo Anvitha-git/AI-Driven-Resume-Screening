@@ -4,6 +4,8 @@ import "./LandingPage.css";
 
 const LandingPage = () => {
   const navigate = useNavigate();
+  const token = localStorage.getItem('access_token') || localStorage.getItem('token');
+  const role = localStorage.getItem('role');
   const [isVisible, setIsVisible] = useState(false);
   const [showTeam, setShowTeam] = useState(false);
 
@@ -20,6 +22,14 @@ const LandingPage = () => {
     return () => document.removeEventListener('keydown', onKeyDown);
   }, [showTeam]);
   
+  const handleGoToDashboard = () => {
+    if (role === 'HR') {
+      navigate('/hr-dashboard');
+    } else {
+      navigate('/candidate-dashboard');
+    }
+  };
+
   const handleLogin = () => {
     navigate('/login');
   };
@@ -29,7 +39,11 @@ const LandingPage = () => {
   };
 
   const handleGetStarted = () => {
-    navigate('/signup');
+    if (token) {
+      handleGoToDashboard();
+    } else {
+      navigate('/signup');
+    }
   };
 
   const scrollToSection = (sectionId) => {
@@ -62,12 +76,20 @@ const LandingPage = () => {
             </div>
           </div>
           <div className="landing-nav-right" style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-            <button onClick={handleLogin} className="landing-nav-btn landing-nav-btn-secondary">
-              Login
-            </button>
-            <button onClick={handleSignUp} className="landing-nav-btn landing-nav-btn-primary">
-              Sign Up
-            </button>
+            {token ? (
+              <button onClick={handleGoToDashboard} className="landing-nav-btn landing-nav-btn-primary">
+                Go to Dashboard
+              </button>
+            ) : (
+              <>
+                <button onClick={handleLogin} className="landing-nav-btn landing-nav-btn-secondary">
+                  Login
+                </button>
+                <button onClick={handleSignUp} className="landing-nav-btn landing-nav-btn-primary">
+                  Sign Up
+                </button>
+              </>
+            )}
           </div>
         </div>
       </nav>

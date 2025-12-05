@@ -1,24 +1,23 @@
 import os
-import re
-from collections import Counter
-from datetime import datetime
-
-# Force Transformers to avoid importing TensorFlow/Flax; use PyTorch only
-os.environ.setdefault("TRANSFORMERS_NO_TF", "1")
-os.environ.setdefault("TRANSFORMERS_NO_FLAX", "1")
-
-# Direct imports - NOT lazy loaded to avoid cold start issues
 import pdfplumber
 from docx import Document
 import pytesseract
 from PIL import Image
 import cv2
 import numpy as np
+
+# Force Transformers to avoid importing TensorFlow/Flax; use PyTorch only
+os.environ.setdefault("TRANSFORMERS_NO_TF", "1")
+os.environ.setdefault("TRANSFORMERS_NO_FLAX", "1")
+
 from sentence_transformers import SentenceTransformer, util
 from fairlearn.metrics import MetricFrame
 import pandas as pd
+import re
 from rapidfuzz import fuzz, process
+from collections import Counter
 import spacy
+from datetime import datetime
 from lime.lime_text import LimeTextExplainer
 from sklearn.pipeline import make_pipeline
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -444,6 +443,7 @@ def explain_ranking_with_lime(resume_text, jd_requirements, resume_data, num_fea
         - matched_skills: List of skills that matched the JD
         - missing_skills: List of required skills not found in resume
     """
+    
     # Calculate the actual ranking score with breakdown
     jd_text = " ".join(jd_requirements) if jd_requirements else "default job requirements"
     model = SentenceTransformer('all-mpnet-base-v2')

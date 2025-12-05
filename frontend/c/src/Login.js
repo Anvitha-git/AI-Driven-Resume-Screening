@@ -3,7 +3,6 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import './Auth.css';
-const BASE_URL = process.env.REACT_APP_BACKEND_URL;
 
 function Login() {
   const navigate = useNavigate();
@@ -16,7 +15,7 @@ function Login() {
     e.preventDefault();
     setError('');
     try {
-      const response = await axios.post(`${BASE_URL}/login`, { email, password });
+      const response = await axios.post('http://localhost:8000/login', { email, password });
       localStorage.setItem('token', response.data.access_token);
       localStorage.setItem('access_token', response.data.access_token);
       localStorage.setItem('refresh_token', response.data.refresh_token);
