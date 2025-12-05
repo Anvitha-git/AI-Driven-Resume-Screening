@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import './CustomChatbot.css';
+import API_URL from './config';
 
 function CustomChatbot() {
   const userId = localStorage.getItem('user_id');
@@ -70,7 +71,7 @@ function CustomChatbot() {
       try {
         const token = localStorage.getItem('access_token') || localStorage.getItem('token');
         if (token) {
-          const appsResponse = await fetch(`http://localhost:8000/applications/${userId}`, {
+          const appsResponse = await fetch(`${API_URL}/applications/${userId}`, {
             headers: { 'Authorization': `Bearer ${token}` }
           });
           const applications = await appsResponse.json();

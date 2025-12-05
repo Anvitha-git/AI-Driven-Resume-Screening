@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import './Dashboard.css';
 import './ExplanationModal.css';
+import API_URL from './config';
 
 function HrDashboard() {
       // To show the modal, call:
@@ -17,7 +18,7 @@ function HrDashboard() {
     const refresh_token = localStorage.getItem('refresh_token');
     if (!refresh_token) return false;
     try {
-      const resp = await axios.post('http://localhost:8000/refresh', { refresh_token });
+      const resp = await axios.post('/refresh', { refresh_token });
       const { access_token, refresh_token: new_rt } = resp.data || {};
       if (access_token) {
         localStorage.setItem('access_token', access_token);
@@ -68,7 +69,7 @@ function HrDashboard() {
         weights: newJob.weights,
       };
       await withAuth(async (token) => (
-        axios.post('http://localhost:8000/jobs', jobData, {
+        axios.post('/jobs', jobData, {
           headers: { Authorization: `Bearer ${token}` },
         })
       ));
@@ -88,10 +89,10 @@ function HrDashboard() {
     setRankingJob(jdId);
     try {
       const list = await withAuth(async (token) => {
-        await axios.post(`http://localhost:8000/rank-resumes/${jdId}`, {}, {
+        await axios.post(`${API_URL}/rank-resumes/${jdId}`, {}, {
           headers: { Authorization: `Bearer ${token}` },
         });
-        const res = await axios.get(`http://localhost:8000/resumes/${jdId}`, {
+        const res = await axios.get(`${API_URL}/resumes/${jdId}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         return Array.isArray(res.data) ? res.data : [];
@@ -180,7 +181,7 @@ function HrDashboard() {
     const loadPrefs = async () => {
       try {
         const response = await withAuth(async (token) => {
-          return await axios.get('http://localhost:8000/preferences', {
+          return await axios.get('/preferences', {
             headers: { Authorization: `Bearer ${token}` }
           });
         });
@@ -202,7 +203,7 @@ function HrDashboard() {
     setPreferences(newPrefs);
     try {
       await withAuth(async (token) => {
-        return await axios.put('http://localhost:8000/preferences', {
+        return await axios.put('/preferences', {
           email_notifications: newPrefs.emailNotifications,
           status_updates: newPrefs.statusUpdates,
           job_alerts: newPrefs.jobAlerts,
@@ -343,7 +344,7 @@ function HrDashboard() {
       if (activePage === 'job-postings') {
         try {
           await withAuth(async (token) => {
-            const response = await axios.get('http://localhost:8000/jobs', {
+            const response = await axios.get('/jobs', {
               headers: { Authorization: `Bearer ${token}` },
             });
             
@@ -355,13 +356,13 @@ function HrDashboard() {
       } else if (activePage === 'history') {
         try {
           await withAuth(async (token) => {
-            const response = await axios.get('http://localhost:8000/hr/jobs', {
+            const response = await axios.get('/hr/jobs', {
               headers: { Authorization: `Bearer ${token}` },
             });
             const jobs = response.data || [];
             const jobsWithCandidates = await Promise.all(jobs.map(async (job) => {
               try {
-                const res = await axios.get(`http://localhost:8000/hr/jobs/${job.jd_id}/candidates`, {
+                const res = await axios.get(`${API_URL}/hr/jobs/${job.jd_id}/candidates`, {
                   headers: { Authorization: `Bearer ${token}` },
                 });
                 return { ...job, candidates: res.data || [] };
@@ -390,7 +391,7 @@ function HrDashboard() {
   const fetchJobs = async () => {
     try {
       await withAuth(async (token) => {
-        const response = await axios.get('http://localhost:8000/jobs', {
+        const response = await axios.get('/jobs', {
           headers: { Authorization: `Bearer ${token}` },
         });
         setJobs(response.data);
@@ -405,7 +406,7 @@ function HrDashboard() {
     try {
       await withAuth(async (token) => {
         console.log('Fetching HR jobs history...');
-        const response = await axios.get('http://localhost:8000/hr/jobs', {
+        const response = await axios.get('/hr/jobs', {
           headers: { Authorization: `Bearer ${token}` },
         });
         console.log('HR jobs response:', response.data);
@@ -413,7 +414,7 @@ function HrDashboard() {
         console.log(`Found ${jobs.length} jobs for this HR`);
         const jobsWithCandidates = await Promise.all(jobs.map(async (job) => {
           try {
-            const res = await axios.get(`http://localhost:8000/hr/jobs/${job.jd_id}/candidates`, {
+            const res = await axios.get(`${API_URL}/hr/jobs/${job.jd_id}/candidates`, {
               headers: { Authorization: `Bearer ${token}` },
             });
             return { ...job, candidates: res.data || [] };
@@ -432,7 +433,7 @@ function HrDashboard() {
   const fetchCandidatesForJob = async (jdId) => {
     try {
       await withAuth(async (token) => {
-        const response = await axios.get(`http://localhost:8000/hr/jobs/${jdId}/candidates`, {
+        const response = await axios.get(`${API_URL}/hr/jobs/${jdId}/candidates`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         setHistoryJobCandidates(response.data || []);
@@ -453,7 +454,7 @@ function HrDashboard() {
       }
       
       await withAuth(async (token) => (
-        axios.post(`http://localhost:8000/decisions/${resumeId}`, {
+        axios.post(`${API_URL}/decisions/${resumeId}`, {
           decision,
           decided_by: userId
         }, {
@@ -502,7 +503,7 @@ function HrDashboard() {
         await withAuth(async (token) => {
           // Call submit-decisions endpoint to send emails and notifications
           const submitResponse = await axios.post(
-            `http://localhost:8000/hr/jobs/${currentJobId}/submit-decisions`,
+            `${API_URL}/hr/jobs/${currentJobId}/submit-decisions`,
             {},
             { headers: { Authorization: `Bearer ${token}` } }
           );
@@ -511,7 +512,7 @@ function HrDashboard() {
           
           // Update job status to closed
           await axios.patch(
-            `http://localhost:8000/jobs/${currentJobId}`,
+            `${API_URL}/jobs/${currentJobId}`,
             { status: 'closed' },
             { headers: { Authorization: `Bearer ${token}` } }
           );
@@ -568,7 +569,7 @@ function HrDashboard() {
     
     try {
       const response = await withAuth(async (token) => {
-        return await axios.get(`http://localhost:8000/explain-ranking/${resumeId}`, {
+        return await axios.get(`${API_URL}/explain-ranking/${resumeId}`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
       });
@@ -610,7 +611,7 @@ function HrDashboard() {
     
     try {
       const token = getAccessToken();
-      await axios.put('http://localhost:8000/update-name', 
+      await axios.put('/update-name', 
         { name: newName.trim() },
         { headers: { Authorization: `Bearer ${token}` }}
       );
@@ -646,7 +647,7 @@ function HrDashboard() {
     
     try {
       const token = getAccessToken();
-      await axios.post('http://localhost:8000/change-password', {
+      await axios.post('/change-password', {
         current_password: passwordData.current,
         new_password: passwordData.new
       }, {
@@ -675,7 +676,7 @@ function HrDashboard() {
       console.log('Starting job export...');
       await withAuth(async (token) => {
         console.log('Fetching jobs from backend...');
-        const response = await axios.get('http://localhost:8000/hr/jobs', {
+        const response = await axios.get('/hr/jobs', {
           headers: { Authorization: `Bearer ${token}` }
         });
         
@@ -731,7 +732,7 @@ function HrDashboard() {
       await withAuth(async (token) => {
         // Get all jobs first
         console.log('Fetching all jobs...');
-        const jobsResponse = await axios.get('http://localhost:8000/hr/jobs', {
+        const jobsResponse = await axios.get('/hr/jobs', {
           headers: { Authorization: `Bearer ${token}` }
         });
         
@@ -748,7 +749,7 @@ function HrDashboard() {
         for (const job of allJobs) {
           try {
             console.log(`Fetching candidates for job: ${job.title}`);
-            const candidatesResponse = await axios.get(`http://localhost:8000/hr/jobs/${job.jd_id}/candidates`, {
+            const candidatesResponse = await axios.get(`${API_URL}/hr/jobs/${job.jd_id}/candidates`, {
               headers: { Authorization: `Bearer ${token}` }
             });
             const candidates = candidatesResponse.data || [];
@@ -2119,3 +2120,5 @@ function HrDashboard() {
 }
 
 export default HrDashboard;
+
+
