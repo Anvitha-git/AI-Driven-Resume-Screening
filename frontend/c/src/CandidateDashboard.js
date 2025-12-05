@@ -704,7 +704,7 @@ const hasOpenApplication = () => {
           <div className="dashboard-side-drawer left" onClick={e => e.stopPropagation()}>
             <div className="drawer-header">
               <div className="drawer-title">Menu</div>
-              <button className="drawer-close" onClick={() => setShowSideDrawer(false)} aria-label="Close Menu">Ã—</button>
+              <button className="drawer-close" onClick={() => setShowSideDrawer(false)} aria-label="Close Menu">×</button>
             </div>
             <div className="drawer-nav">
               <span className="drawer-nav-link" onClick={() => { setShowSideDrawer(false); setActivePage('jobs'); }}>
@@ -795,7 +795,7 @@ const hasOpenApplication = () => {
                               borderRadius: '8px',
                               display: 'inline-block'
                             }}>
-                              âœ“ Already Applied
+                              ✓ Already Applied
                             </div>
                           ) : (
                           <div className="dashboard-file-input-container">
@@ -822,7 +822,7 @@ const hasOpenApplication = () => {
                   ) : (
                     <tr>
                       <td colSpan={4} className="dashboard-empty-state">
-                        <div className="dashboard-empty-state-icon">ðŸ“‹</div>
+                        <div className="dashboard-empty-state-icon">📋</div>
                         <div>No jobs available</div>
                       </td>
                     </tr>
@@ -855,8 +855,8 @@ const hasOpenApplication = () => {
                         ? (Array.isArray(app.job_descriptions.requirements) 
                           ? app.job_descriptions.requirements.join(', ') 
                           : app.job_descriptions.requirements)
-                        : (app.job_descriptions?.description || 'â€”');
-                      const applied = formatDateSafe(app.created_at) || 'â€”';
+                        : (app.job_descriptions?.description || '—');
+                      const applied = formatDateSafe(app.created_at) || '—';
                       const rawStatus = app.resumes?.decision || app.status || 'submitted';
                       const meta = getApplicationStatusMeta(rawStatus);
                       return (
@@ -877,7 +877,7 @@ const hasOpenApplication = () => {
               </div>
             ) : (
               <div className="dashboard-empty-state">
-                <div className="dashboard-empty-state-icon">ðŸ“„</div>
+                <div className="dashboard-empty-state-icon">📄</div>
                 <div>No applications yet</div>
               </div>
             )}
@@ -999,11 +999,11 @@ const hasOpenApplication = () => {
                 </div>
                 <div className="profile-info-item">
                   <span className="profile-info-label">Email</span>
-                  <span className="profile-info-value">{localStorage.getItem('email') || '—'}</span>
+                  <span className="profile-info-value">{localStorage.getItem('email') || '�'}</span>
                 </div>
                 <div className="profile-info-item">
                   <span className="profile-info-label">User ID</span>
-                  <span className="profile-info-value">{localStorage.getItem('user_id') || '—'}</span>
+                  <span className="profile-info-value">{localStorage.getItem('user_id') || '�'}</span>
                 </div>
                 <div className="profile-info-item">
                   <span className="profile-info-label">Member Since</span>
@@ -1190,22 +1190,22 @@ const hasOpenApplication = () => {
               <h3 className="help-section-title">Quick Help</h3>
               <div className="help-cards-grid">
                 <div className="help-card">
-                  <div className="help-card-icon">ðŸ“š</div>
+                  <div className="help-card-icon">📚</div>
                   <h4 className="help-card-title">Getting Started</h4>
                   <p className="help-card-description">Learn the basics of using the platform</p>
                 </div>
                 <div className="help-card">
-                  <div className="help-card-icon">ðŸ’¼</div>
+                  <div className="help-card-icon">💼</div>
                   <h4 className="help-card-title">Applying for Jobs</h4>
                   <p className="help-card-description">How to search and apply for positions</p>
                 </div>
                 <div className="help-card">
-                  <div className="help-card-icon">ðŸ“„</div>
+                  <div className="help-card-icon">📄</div>
                   <h4 className="help-card-title">Resume Tips</h4>
                   <p className="help-card-description">Best practices for resume submission</p>
                 </div>
                 <div className="help-card">
-                  <div className="help-card-icon">ðŸ“Š</div>
+                  <div className="help-card-icon">📊</div>
                   <h4 className="help-card-title">Track Applications</h4>
                   <p className="help-card-description">Monitor your application status</p>
                 </div>
@@ -1267,11 +1267,11 @@ const hasOpenApplication = () => {
                   </p>
                   <div className="contact-methods">
                     <div className="contact-method">
-                      <span style={{marginRight: '8px'}} role="img" aria-label="Email">✉️</span>
+                      <span style={{marginRight: '8px'}} role="img" aria-label="Email">??</span>
                       <span>airesumescreening@gmail.com</span>
                     </div>
                     <div className="contact-method">
-                      <span style={{marginRight: '8px'}} role="img" aria-label="Phone">📞</span>
+                      <span style={{marginRight: '8px'}} role="img" aria-label="Phone">??</span>
                       <span>+1 (555) 123-4567</span>
                     </div>
                   </div>
@@ -1289,7 +1289,7 @@ const hasOpenApplication = () => {
                 Found a technical issue? Let us know so we can fix it quickly.
               </p>
               <button className="settings-action-btn secondary" onClick={handleReportBug}>
-                <span style={{marginRight: '8px'}} role="img" aria-label="Bug">🐞</span>
+                <span style={{marginRight: '8px'}} role="img" aria-label="Bug">??</span>
                 Report an Issue
               </button>
             </div>
@@ -1305,7 +1305,7 @@ const hasOpenApplication = () => {
             <div className="modal-content" onClick={(e) => e.stopPropagation()}>
               <div className="modal-header">
                 <h3>Change Password</h3>
-                <button className="modal-close" onClick={() => setShowPasswordModal(false)}>Ã—</button>
+                <button className="modal-close" onClick={() => setShowPasswordModal(false)}>×</button>
               </div>
               <div className="modal-body">
                 <div className="form-group">
@@ -1357,7 +1357,7 @@ const hasOpenApplication = () => {
             <div className="modal-content" onClick={(e) => e.stopPropagation()}>
               <div className="modal-header">
                 <h3>Contact Support</h3>
-                <button className="modal-close" onClick={() => setShowSupportModal(false)}>Ã—</button>
+                <button className="modal-close" onClick={() => setShowSupportModal(false)}>×</button>
               </div>
               <div className="modal-body">
                 <div className="form-group">
@@ -1392,7 +1392,7 @@ const hasOpenApplication = () => {
             <div className="modal-content" onClick={(e) => e.stopPropagation()}>
               <div className="modal-header">
                 <h3>Report a Bug</h3>
-                <button className="modal-close" onClick={() => setShowBugReportModal(false)}>Ã—</button>
+                <button className="modal-close" onClick={() => setShowBugReportModal(false)}>×</button>
               </div>
               <div className="modal-body">
                 <div className="form-group">
@@ -1427,7 +1427,7 @@ const hasOpenApplication = () => {
             <div className="modal-content" onClick={(e) => e.stopPropagation()}>
               <div className="modal-header">
                 <h3>Edit Name</h3>
-                <button className="modal-close" onClick={() => setShowEditNameModal(false)}>×</button>
+                <button className="modal-close" onClick={() => setShowEditNameModal(false)}>�</button>
               </div>
               <div className="modal-body">
                 <div className="form-group">
@@ -1472,7 +1472,7 @@ const hasOpenApplication = () => {
                 fontSize: '32px',
                 fontWeight: 'bold'
               }}>
-                {alertType === 'success' ? '✓' : '!'}
+                {alertType === 'success' ? '?' : '!'}
               </div>
               <div className="modal-body" style={{padding: '0 0 24px 0'}}>
                 <p style={{margin: 0, fontSize: '16px', lineHeight: '1.5'}}>{alertMessage}</p>
@@ -1489,6 +1489,7 @@ const hasOpenApplication = () => {
 }
 
 export default CandidateDashboard;
+
 
 
 
