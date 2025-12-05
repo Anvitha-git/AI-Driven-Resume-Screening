@@ -18,16 +18,9 @@ load_dotenv()
 
 app = FastAPI()
 
-# Lazy imports for heavy ML modules - only import when endpoints are called
-def get_ai_processor():
-    """Lazy load AI processor to speed up app startup"""
-    from ai_processor import extract_text, extract_structured_data, rank_resumes, extract_skills_from_text
-    return extract_text, extract_structured_data, rank_resumes, extract_skills_from_text
-
-def get_email_service():
-    """Lazy load email service"""
-    from email_service import send_decision_email
-    return send_decision_email
+# Pre-import AI modules for reliable deployment (no lazy loading)
+from ai_processor import extract_text, extract_structured_data, rank_resumes, extract_skills_from_text
+from email_service import send_decision_email
 
 # Create two separate clients:
 # - supabase_auth: used ONLY for auth operations (sign up/in, token validation)
@@ -501,7 +494,6 @@ async def create_job(job: JobPosting, user=Depends(get_current_user)):
         
         if len(job.requirements) == 1 and len(job.requirements[0]) > 50:
             # It's likely a paragraph, extract skills
-            _, _, _, extract_skills_from_text = get_ai_processor()
             extracted_skills = extract_skills_from_text(job.requirements[0])
             processed_requirements = extracted_skills if extracted_skills else job.requirements
         
@@ -620,7 +612,6 @@ async def upload_resume(
         temp_file = f"temp_{file_name}"
         with open(temp_file, "wb") as f:
             f.write(file_content)
-        extract_text, extract_structured_data, _, _ = get_ai_processor()
         text = extract_text(temp_file, file.content_type)
         structured_data = extract_structured_data(text)
         
@@ -723,7 +714,6 @@ async def rank_resumes_endpoint(jd_id: str, user=Depends(get_current_user)):
         weights = jd.get("weights") or {}
         
         # Rank resumes with weights
-        _, _, rank_resumes, _ = get_ai_processor()
         scores = rank_resumes(resumes, jd["requirements"], weights)
         
         # Update resumes with scores and explanations
@@ -1065,7 +1055,6 @@ async def submit_decisions(jd_id: str, user=Depends(get_current_user)):
             
             # Send email notification (preferences feature removed as columns don't exist)
             if candidate_email:
-                send_decision_email = get_email_service()
                 email_sent = send_decision_email(
                     candidate_email=candidate_email,
                     candidate_name=candidate_name,

@@ -3,31 +3,26 @@ import re
 from collections import Counter
 from datetime import datetime
 
-# Lazy imports for heavy ML libraries - only load when functions are called
-def _import_ml_libraries():
-    """Lazy load all heavy ML libraries to speed up module import"""
-    global SentenceTransformer, util, MetricFrame, pd, fuzz, process, spacy, LimeTextExplainer, make_pipeline, TfidfVectorizer, LogisticRegression
-    global pdfplumber, Document, pytesseract, Image, cv2, np
-    
-    # Force Transformers to avoid importing TensorFlow/Flax; use PyTorch only
-    os.environ.setdefault("TRANSFORMERS_NO_TF", "1")
-    os.environ.setdefault("TRANSFORMERS_NO_FLAX", "1")
-    
-    import pdfplumber
-    from docx import Document
-    import pytesseract
-    from PIL import Image
-    import cv2
-    import numpy as np
-    from sentence_transformers import SentenceTransformer, util
-    from fairlearn.metrics import MetricFrame
-    import pandas as pd
-    from rapidfuzz import fuzz, process
-    import spacy
-    from lime.lime_text import LimeTextExplainer
-    from sklearn.pipeline import make_pipeline
-    from sklearn.feature_extraction.text import TfidfVectorizer
-    from sklearn.linear_model import LogisticRegression
+# Force Transformers to avoid importing TensorFlow/Flax; use PyTorch only
+os.environ.setdefault("TRANSFORMERS_NO_TF", "1")
+os.environ.setdefault("TRANSFORMERS_NO_FLAX", "1")
+
+# Direct imports - NOT lazy loaded to avoid cold start issues
+import pdfplumber
+from docx import Document
+import pytesseract
+from PIL import Image
+import cv2
+import numpy as np
+from sentence_transformers import SentenceTransformer, util
+from fairlearn.metrics import MetricFrame
+import pandas as pd
+from rapidfuzz import fuzz, process
+import spacy
+from lime.lime_text import LimeTextExplainer
+from sklearn.pipeline import make_pipeline
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.linear_model import LogisticRegression
 
 # Load spaCy model (singleton pattern)
 _nlp_model = None
@@ -36,7 +31,6 @@ def get_nlp_model():
     global _nlp_model
     if _nlp_model is None:
         try:
-            _import_ml_libraries()
             _nlp_model = spacy.load("en_core_web_sm")
         except:
             # Fallback if model not installed
@@ -55,8 +49,6 @@ def extract_skills_from_text(text, use_fuzzy=True):
     Returns:
         List of extracted skills/requirements
     """
-    _import_ml_libraries()
-    
     if not text or not text.strip():
         return []
     
@@ -159,13 +151,11 @@ def extract_skills_from_text(text, use_fuzzy=True):
     return result if result else []
 
 def preprocess_image(file_path):
-    _import_ml_libraries()
     img = cv2.imread(file_path, cv2.IMREAD_GRAYSCALE)
     img = cv2.threshold(img, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]
     return img
 
 def extract_text(file_path, file_type):
-    _import_ml_libraries()
     if file_type == "application/pdf":
         with pdfplumber.open(file_path) as pdf:
             text = "".join(page.extract_text() for page in pdf.pages)
@@ -296,7 +286,6 @@ def rank_resumes(resumes, jd_requirements, weights=None):
     Returns:
         List of tuples: (score, detailed_breakdown) for each resume
     """
-    _import_ml_libraries()
     # Use all-mpnet-base-v2 for best balance of accuracy and speed
     # This model outperforms MiniLM with only 2x slower inference (still fast on CPU)
     model = SentenceTransformer('all-mpnet-base-v2')
@@ -455,8 +444,6 @@ def explain_ranking_with_lime(resume_text, jd_requirements, resume_data, num_fea
         - matched_skills: List of skills that matched the JD
         - missing_skills: List of required skills not found in resume
     """
-    _import_ml_libraries()
-    
     # Calculate the actual ranking score with breakdown
     jd_text = " ".join(jd_requirements) if jd_requirements else "default job requirements"
     model = SentenceTransformer('all-mpnet-base-v2')
