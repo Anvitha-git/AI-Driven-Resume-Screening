@@ -592,17 +592,17 @@ async def upload_resume(
     token: str = Depends(oauth2_scheme),
     refresh_token: str = Header(None)
 ):
-    if user.role not in ["job_seeker", "demo_candidate", "Candidate"]:
-        raise HTTPException(status_code=403, detail="Not authorized")
-    if file.content_type not in [
-        "application/pdf",
-        "application/msword",
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        "image/png",
-        "image/jpeg"
-    ]:
-        raise HTTPException(status_code=400, detail="Invalid file type")
     try:
+        if user.role not in ["job_seeker", "demo_candidate", "Candidate"]:
+            raise HTTPException(status_code=403, detail="Not authorized")
+        if file.content_type not in [
+            "application/pdf",
+            "application/msword",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "image/png",
+            "image/jpeg"
+        ]:
+            raise HTTPException(status_code=400, detail="Invalid file type")
         file_content = await file.read()
         file_name = f"{uuid.uuid4()}_{file.filename}"
         
@@ -735,8 +735,17 @@ async def rank_resumes_endpoint(jd_id: str, user=Depends(get_current_user)):
     if user.role not in ["HR", "demo_hr"]:
         raise HTTPException(status_code=403, detail="Not authorized")
     try:
-        jd = supabase_service.table("job_descriptions").select("requirements, weights").eq("jd_id", jd_id).execute().data[0]
-        resumes = supabase_service.table("resumes").select("*").eq("jd_id", jd_id).execute().data
+        # Fetch job description with validation
+        jd_response = supabase_service.table("job_descriptions").select("requirements, weights").eq("jd_id", jd_id).execute()
+        if not jd_response.data or len(jd_response.data) == 0:
+            raise HTTPException(status_code=404, detail="Job description not found")
+        jd = jd_response.data[0]
+        
+        # Fetch resumes for this job
+        resumes_response = supabase_service.table("resumes").select("*").eq("jd_id", jd_id).execute()
+        resumes = resumes_response.data or []
+        if not resumes:
+            raise HTTPException(status_code=404, detail="No resumes found for this job")
         
         # Get weights from JD or use defaults
         weights = jd.get("weights") or {}
