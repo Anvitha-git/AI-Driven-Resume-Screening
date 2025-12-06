@@ -83,7 +83,7 @@ class ChangePasswordRequest(BaseModel):
 async def health_check():
     return {"status": "ok"}
 
-
+class UserPreferences(BaseModel):
     email_notifications: bool = True
     status_updates: bool = True
     job_alerts: bool = True
