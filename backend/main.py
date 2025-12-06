@@ -78,7 +78,12 @@ class ChangePasswordRequest(BaseModel):
     current_password: str
     new_password: str
 
-class UserPreferences(BaseModel):
+# Health check endpoint for Render
+@app.get("/health")
+async def health_check():
+    return {"status": "ok"}
+
+
     email_notifications: bool = True
     status_updates: bool = True
     job_alerts: bool = True
