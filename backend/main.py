@@ -32,14 +32,15 @@ supabase_auth: Client = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
 supabase_service: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
 # Enable CORS
-# Allow frontend from localhost and local network during development
+# Allow frontend from localhost (dev) and Netlify (production)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:3000",
         "http://127.0.0.1:3000",
-        # Add your LAN IP (React dev server) if accessed from another machine
         "http://10.195.224.144:3000",
+        "https://ai-resumescreening.netlify.app",
+        "https://www.ai-resumescreening.netlify.app",
     ],
     allow_credentials=True,
     allow_methods=["*"],
