@@ -6,22 +6,16 @@ from PIL import Image
 import cv2
 import numpy as np
 
-# Force Transformers to avoid importing TensorFlow/Flax; use PyTorch only
+# Avoid importing very large ML libraries at module import time.
+# Heavy libraries (sentence-transformers, spaCy, LIME, fairlearn, pandas, sklearn)
+# are imported lazily in the functions that need them to reduce startup memory.
 os.environ.setdefault("TRANSFORMERS_NO_TF", "1")
 os.environ.setdefault("TRANSFORMERS_NO_FLAX", "1")
 
-from sentence_transformers import SentenceTransformer, util
-from fairlearn.metrics import MetricFrame
-import pandas as pd
 import re
 from rapidfuzz import fuzz, process
 from collections import Counter
-import spacy
 from datetime import datetime
-from lime.lime_text import LimeTextExplainer
-from sklearn.pipeline import make_pipeline
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.linear_model import LogisticRegression
 
 # Load spaCy model (singleton pattern)
 _nlp_model = None
@@ -30,6 +24,7 @@ def get_nlp_model():
     global _nlp_model
     if _nlp_model is None:
         try:
+            import spacy
             _nlp_model = spacy.load("en_core_web_sm")
         except:
             # Fallback if model not installed
@@ -285,6 +280,9 @@ def rank_resumes(resumes, jd_requirements, weights=None):
     Returns:
         List of tuples: (score, detailed_breakdown) for each resume
     """
+    # Lazily import heavy ML libraries to avoid high memory at import time
+    from sentence_transformers import SentenceTransformer, util
+
     # Use all-mpnet-base-v2 for best balance of accuracy and speed
     # This model outperforms MiniLM with only 2x slower inference (still fast on CPU)
     model = SentenceTransformer('all-mpnet-base-v2')
@@ -410,6 +408,10 @@ def rank_resumes(resumes, jd_requirements, weights=None):
     # Fairlearn bias check (optional, for transparency)
     try:
         if len(resumes) > 0:
+            # Import pandas and fairlearn lazily
+            import pandas as pd
+            from fairlearn.metrics import MetricFrame
+
             df = pd.DataFrame({
                 "scores": scores,
                 "group": [resume.get("education", [{}])[0].get("degree", "Unknown") if resume.get("education") else "Unknown" for resume in resumes]
@@ -446,6 +448,8 @@ def explain_ranking_with_lime(resume_text, jd_requirements, resume_data, num_fea
     
     # Calculate the actual ranking score with breakdown
     jd_text = " ".join(jd_requirements) if jd_requirements else "default job requirements"
+    # Lazily import heavy ML libraries
+    from sentence_transformers import SentenceTransformer, util
     model = SentenceTransformer('all-mpnet-base-v2')
     jd_embedding = model.encode(jd_text, convert_to_tensor=True)
     resume_embedding = model.encode(resume_text, convert_to_tensor=True)
@@ -568,31 +572,38 @@ def explain_ranking_with_lime(resume_text, jd_requirements, resume_data, num_fea
         
         return np.array(scores)
     
-    # Create LIME explainer
-    explainer = LimeTextExplainer(class_names=['Poor Match', 'Good Match'], random_state=42)
+    # Create LIME explainer (import lazily)
+    try:
+        from lime.lime_text import LimeTextExplainer
+        explainer = LimeTextExplainer(class_names=['Poor Match', 'Good Match'], random_state=42)
+    except Exception:
+        explainer = None
     
     # Generate explanation
     try:
+        if explainer is None:
+            raise RuntimeError("LIME not available")
+
         exp = explainer.explain_instance(
-            resume_text, 
-            score_predictor, 
+            resume_text,
+            score_predictor,
             num_features=num_features,
             num_samples=500
         )
-        
+
         # Extract feature weights
         lime_features = exp.as_list()
-        
+
         # Separate positive and negative contributors
         positive_words = [(word, weight) for word, weight in lime_features if weight > 0]
         negative_words = [(word, weight) for word, weight in lime_features if weight < 0]
-        
+
         # Sort by absolute importance
         positive_words.sort(key=lambda x: x[1], reverse=True)
         negative_words.sort(key=lambda x: x[1])
-        
+
     except Exception as e:
-        print(f"LIME explanation failed: {e}")
+        print(f"LIME explanation failed or not available: {e}")
         lime_features = []
         positive_words = []
         negative_words = []
