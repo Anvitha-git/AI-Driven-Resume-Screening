@@ -88,7 +88,7 @@ function CustomChatbot() {
     }
 
     try {
-      const response = await fetch('http://localhost:5005/webhooks/rest/webhook', {
+      const response = await fetch(`${API_URL.replace(/\/$/, '')}/rasa/webhook`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

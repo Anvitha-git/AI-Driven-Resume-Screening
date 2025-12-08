@@ -13,6 +13,26 @@ import requests
 from urllib.parse import urlparse
 from email_service import send_decision_email
 
+# Rasa proxy: forwarding endpoint to talk to the chatbot server
+@app.post('/rasa/webhook')
+async def rasa_proxy(payload: dict):
+    """Proxy requests to the configured Rasa server webhook.
+
+    Reads `RASA_URL` from environment (defaults to http://localhost:5005).
+    This allows the frontend to call the backend (same origin) which then
+    forwards to the Rasa server (avoiding CORS issues and letting us keep
+    the Rasa URL as a secret/config on the server).
+    """
+    rasa_base = os.getenv('RASA_URL', 'http://localhost:5005')
+    target = rasa_base.rstrip('/') + '/webhooks/rest/webhook'
+    try:
+        resp = requests.post(target, json=payload, timeout=15)
+        resp.raise_for_status()
+        return resp.json()
+    except Exception as e:
+        logging.exception(f"Rasa proxy error when calling {target}: {e}")
+        raise HTTPException(status_code=502, detail=f"Rasa proxy error: {str(e)}")
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 
