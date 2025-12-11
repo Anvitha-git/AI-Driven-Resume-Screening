@@ -15,6 +15,7 @@ EXPOSE 5005
 
 # Copy and use startup script which can fetch models from MODEL_URL
 COPY start.sh /app/start.sh
-RUN chmod +x /app/start.sh
-
-CMD ["/app/start.sh"]
+# Some base images (including certain Rasa images) run as non-root
+# which prevents changing file permissions at build time. Instead of
+# attempting `chmod`, invoke the script through the shell at runtime.
+CMD ["sh", "/app/start.sh"]
