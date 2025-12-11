@@ -30,8 +30,14 @@ SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY")
 SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY") or SUPABASE_SERVICE_ROLE_KEY
 
-supabase_auth: Client = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
-supabase_service: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+# Create supabase clients but don't crash import if keys are missing/invalid
+supabase_auth: Client = None
+supabase_service: Client = None
+try:
+    supabase_auth = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
+    supabase_service = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+except Exception as e:
+    logging.warning(f"Could not create Supabase clients during import: {e}")
 
 # Enable CORS
 # Allow frontend from localhost (dev) and Netlify (production)
@@ -64,8 +70,14 @@ async def rasa_proxy(payload: dict):
     forwards to the Rasa server (avoiding CORS issues and letting us keep
     the Rasa URL as a secret/config on the server).
     """
+    # Read RASA_URL from env. Support both base URLs and full webhook URLs.
     rasa_base = os.getenv('RASA_URL', 'http://localhost:5005')
-    target = rasa_base.rstrip('/') + '/webhooks/rest/webhook'
+    rasa_base = rasa_base.rstrip('/')
+    # If the provided RASA_URL already contains the webhook path, avoid appending it twice
+    if rasa_base.endswith('/webhooks/rest/webhook'):
+        target = rasa_base
+    else:
+        target = rasa_base + '/webhooks/rest/webhook'
     try:
         resp = requests.post(target, json=payload, timeout=15)
         resp.raise_for_status()
