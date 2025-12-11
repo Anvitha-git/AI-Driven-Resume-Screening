@@ -1,8 +1,8 @@
-FROM rasa/rasa:latest
+FROM rasa/rasa:3.6.21
 
-# NOTE: Using `latest` for now because the specific tag previously used
-# (`3.7.6-full`) was not available on Docker Hub during the Render build.
-# For reproducible builds pin a known-good tag (e.g. `rasa/rasa:3.8.x`).
+# Pin the image to the Rasa version that the model was trained with
+# (see model `metadata.json`: `rasa_open_source_version: 3.6.21`).
+# Using a matching runtime avoids component/format incompatibilities.
 
 # Set working directory
 WORKDIR /app
