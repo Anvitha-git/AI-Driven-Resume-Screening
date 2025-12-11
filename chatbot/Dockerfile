@@ -7,6 +7,15 @@ FROM rasa/rasa:3.6.21
 # Set working directory
 WORKDIR /app
 
+# Try to reduce memory usage by limiting BLAS/OMP threads and suppressing
+# some TensorFlow verbosity. These don't change model memory footprint
+# drastically but can reduce peak memory usage during startup.
+ENV OMP_NUM_THREADS=1
+ENV OPENBLAS_NUM_THREADS=1
+ENV MKL_NUM_THREADS=1
+ENV TF_CPP_MIN_LOG_LEVEL=2
+ENV PYTHONUNBUFFERED=1
+
 # Copy chatbot project files
 COPY . /app
 

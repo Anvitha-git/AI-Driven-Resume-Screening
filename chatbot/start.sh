@@ -46,4 +46,14 @@ fi
   ls -laR /app/models || echo "/app/models is empty or inaccessible"
 
   echo "Starting Rasa server on port $PORT"
-exec rasa run --enable-api --cors "*" --port "$PORT" --model "$model_arg"
+  # Set runtime limits that can help reduce peak memory usage
+  export OMP_NUM_THREADS=${OMP_NUM_THREADS:-1}
+  export OPENBLAS_NUM_THREADS=${OPENBLAS_NUM_THREADS:-1}
+  export MKL_NUM_THREADS=${MKL_NUM_THREADS:-1}
+  export TF_CPP_MIN_LOG_LEVEL=${TF_CPP_MIN_LOG_LEVEL:-2}
+  export PYTHONUNBUFFERED=${PYTHONUNBUFFERED:-1}
+
+  # Attempt to let TensorFlow grow memory instead of allocating all at once
+  export TF_FORCE_GPU_ALLOW_GROWTH=${TF_FORCE_GPU_ALLOW_GROWTH:-true}
+
+  exec rasa run --enable-api --cors "*" --port "$PORT" --model "$model_arg"
