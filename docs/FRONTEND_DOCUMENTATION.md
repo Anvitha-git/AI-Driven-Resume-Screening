@@ -1363,7 +1363,8 @@ npm run build
 ```bash
 # Create .env file
 REACT_APP_API_URL=http://localhost:8000
-REACT_APP_RASA_URL=http://localhost:5005
+# When deployed, set this to your Rasa server URL (Render example below)
+REACT_APP_RASA_URL=https://ai-driven-resume-screening-chatbot-qiyj.onrender.com
 ```
 
 **Usage:**
