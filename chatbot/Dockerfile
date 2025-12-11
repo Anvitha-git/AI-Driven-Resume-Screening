@@ -13,5 +13,8 @@ COPY . /app
 # Expose Rasa port
 EXPOSE 5005
 
-# Run Rasa server with API enabled and CORS open
-CMD ["run", "--enable-api", "--cors", "*", "--port", "5005"]
+# Copy and use startup script which can fetch models from MODEL_URL
+COPY start.sh /app/start.sh
+RUN chmod +x /app/start.sh
+
+CMD ["/app/start.sh"]
