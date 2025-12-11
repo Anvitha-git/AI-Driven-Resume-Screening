@@ -17,4 +17,4 @@ RUN if [ -f /app/requirements.txt ]; then pip install -r /app/requirements.txt; 
 EXPOSE 5055
 
 # Run the Rasa actions endpoint
-CMD ["python", "-m", "rasa_sdk.endpoint", "--actions", "actions.actions", "--port", "5055"]
+CMD ["python", "-m", "rasa_sdk.endpoint", "--actions", "actions", "--port", "5055"]
