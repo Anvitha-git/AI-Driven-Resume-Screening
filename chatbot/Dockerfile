@@ -1,4 +1,8 @@
-FROM rasa/rasa:3.7.6-full
+FROM rasa/rasa:latest
+
+# NOTE: Using `latest` for now because the specific tag previously used
+# (`3.7.6-full`) was not available on Docker Hub during the Render build.
+# For reproducible builds pin a known-good tag (e.g. `rasa/rasa:3.8.x`).
 
 # Set working directory
 WORKDIR /app
