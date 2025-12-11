@@ -33,5 +33,9 @@ else
   echo "No MODEL_URL provided. Using any model present in /app/models or /app/models/*.tar.gz"
 fi
 
-echo "Starting Rasa server on port $PORT"
-exec rasa run --enable-api --cors "*" --port "$PORT" --model models
+  echo "Model directory listing (for debugging):"
+  # show model files so render logs include what was put into /app/models
+  ls -laR /app/models || echo "/app/models is empty or inaccessible"
+
+  echo "Starting Rasa server on port $PORT"
+  exec rasa run --enable-api --cors "*" --port "$PORT" --model models
