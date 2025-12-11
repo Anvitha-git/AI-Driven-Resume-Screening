@@ -41,8 +41,11 @@ app.add_middleware(
         "http://localhost:3000",
         "http://127.0.0.1:3000",
         "http://10.195.224.144:3000",
-        "https://ai-resumescreening.netlify.app",
-        "https://www.ai-resumescreening.netlify.app",
+        # Production frontend (Vercel)
+        "https://ai-driven-resume-screening.vercel.app",
+        # Common preview / branch deployment domains (keep if you use Vercel previews)
+        "https://ai-driven-resume-screening-6dqwj5pua-anvitha-ss-projects.vercel.app",
+        "https://ai-driven-resume-screening-git-main-anvitha-ss-projects.vercel.app"
     ],
     allow_credentials=True,
     allow_methods=["*"],
