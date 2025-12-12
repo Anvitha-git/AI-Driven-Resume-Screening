@@ -69,7 +69,7 @@ function HrDashboard() {
         weights: newJob.weights,
       };
       await withAuth(async (token) => (
-        axios.post('/jobs', jobData, {
+        axios.post(`${API_URL}/jobs`, jobData, {
           headers: { Authorization: `Bearer ${token}` },
         })
       ));
@@ -344,7 +344,7 @@ function HrDashboard() {
       if (activePage === 'job-postings') {
         try {
           await withAuth(async (token) => {
-            const response = await axios.get('/jobs', {
+            const response = await axios.get(`${API_URL}/jobs`, {
               headers: { Authorization: `Bearer ${token}` },
             });
             
@@ -356,10 +356,14 @@ function HrDashboard() {
       } else if (activePage === 'history') {
         try {
           await withAuth(async (token) => {
-            const response = await axios.get('/hr/jobs', {
+            const response = await axios.get(`${API_URL}/hr/jobs`, {
               headers: { Authorization: `Bearer ${token}` },
             });
-            const jobs = response.data || [];
+            let jobs = response.data;
+            if (!Array.isArray(jobs)) {
+              console.error('Expected jobs array but got:', jobs);
+              jobs = [];
+            }
             const jobsWithCandidates = await Promise.all(jobs.map(async (job) => {
               try {
                 const res = await axios.get(`${API_URL}/hr/jobs/${job.jd_id}/candidates`, {
@@ -732,11 +736,15 @@ function HrDashboard() {
       await withAuth(async (token) => {
         // Get all jobs first
         console.log('Fetching all jobs...');
-        const jobsResponse = await axios.get('/hr/jobs', {
+        const jobsResponse = await axios.get(`${API_URL}/hr/jobs`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         
-        const allJobs = jobsResponse.data || [];
+        let allJobs = jobsResponse.data;
+        if (!Array.isArray(allJobs)) {
+          console.error('Expected jobs array but got:', allJobs);
+          allJobs = [];
+        }
         console.log(`Found ${allJobs.length} jobs`);
         
         if (allJobs.length === 0) {
