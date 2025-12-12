@@ -58,5 +58,41 @@ fi
   # show model files so render logs include what was put into /app/models
   ls -laR /app/models || echo "/app/models is empty or inaccessible"
 
-  echo "Starting Rasa server on port $PORT"
-exec rasa run --enable-api --cors "*" --port "$PORT" --model "$model_arg"
+  # Start a lightweight proxy that immediately binds the assigned PORT and
+  # forwards requests to an internal Rasa port (RASA_INTERNAL_PORT). This
+  # ensures Render detects an open port quickly while the model loads.
+  RASA_INTERNAL_PORT=${RASA_INTERNAL_PORT:-5005}
+
+  echo "Starting proxy on PORT=$PORT forwarding to internal Rasa port $RASA_INTERNAL_PORT"
+  python3 /app/proxy.py &
+  PROXY_PID=$!
+  echo "Proxy PID: $PROXY_PID"
+
+  # Start Rasa on the internal port so the proxy can forward to it.
+  echo "Starting Rasa server on internal port $RASA_INTERNAL_PORT"
+  rasa run --enable-api --cors "*" --port "$RASA_INTERNAL_PORT" --model "$model_arg" &
+  RASA_PID=$!
+  echo "Rasa PID: $RASA_PID"
+
+  # Poll the proxy's /status endpoint until it returns HTTP 200 or until timeout.
+  timeout_seconds=300
+  elapsed=0
+  interval=2
+  echo "Waiting up to ${timeout_seconds}s for Rasa /status on http://127.0.0.1:${PORT}/status"
+  until curl -sSf "http://127.0.0.1:${PORT}/status" >/dev/null 2>&1; do
+    if ! kill -0 "$RASA_PID" >/dev/null 2>&1; then
+      echo "Rasa process exited unexpectedly. Check earlier logs for errors."
+      wait "$RASA_PID" || true
+      exit 1
+    fi
+    sleep $interval
+    elapsed=$((elapsed + interval))
+    if [ $elapsed -ge $timeout_seconds ]; then
+      echo "Timed out waiting for Rasa /status after ${timeout_seconds}s"
+      # Keep container running to allow Render logs to be inspected
+      tail -f /dev/null
+    fi
+  done
+
+  echo "Rasa /status is responding through proxy. Tailing rasa logs (PID $RASA_PID)"
+  wait "$RASA_PID"
