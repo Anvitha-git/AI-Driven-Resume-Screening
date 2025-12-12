@@ -6,6 +6,19 @@ echo "Starting container entrypoint script"
 # Use the PORT env var provided by the host (Render), default to 5005
 PORT=${PORT:-5005}
 
+# Runtime defensive env limits: ensure numerical libs / TF don't spawn many threads
+# If Render or the runtime already set these, keep them; otherwise default to 1.
+: ${OMP_NUM_THREADS:=1}
+: ${OPENBLAS_NUM_THREADS:=1}
+: ${MKL_NUM_THREADS:=1}
+: ${VECLIB_MAXIMUM_THREADS:=1}
+: ${NUMEXPR_NUM_THREADS:=1}
+: ${TF_NUM_INTRAOP_THREADS:=1}
+: ${TF_NUM_INTEROP_THREADS:=1}
+: ${TF_CPP_MIN_LOG_LEVEL:=2}
+: ${TF_FORCE_GPU_ALLOW_GROWTH:=true}
+: ${RASA_TELEMETRY_ENABLED:=false}
+
 # If MODEL_URL is provided, download and extract it to /app/models
 if [ -n "$MODEL_URL" ]; then
   echo "MODEL_URL provided, downloading model..."
@@ -46,14 +59,4 @@ fi
   ls -laR /app/models || echo "/app/models is empty or inaccessible"
 
   echo "Starting Rasa server on port $PORT"
-  # Set runtime limits that can help reduce peak memory usage
-  export OMP_NUM_THREADS=${OMP_NUM_THREADS:-1}
-  export OPENBLAS_NUM_THREADS=${OPENBLAS_NUM_THREADS:-1}
-  export MKL_NUM_THREADS=${MKL_NUM_THREADS:-1}
-  export TF_CPP_MIN_LOG_LEVEL=${TF_CPP_MIN_LOG_LEVEL:-2}
-  export PYTHONUNBUFFERED=${PYTHONUNBUFFERED:-1}
-
-  # Attempt to let TensorFlow grow memory instead of allocating all at once
-  export TF_FORCE_GPU_ALLOW_GROWTH=${TF_FORCE_GPU_ALLOW_GROWTH:-true}
-
-  exec rasa run --enable-api --cors "*" --port "$PORT" --model "$model_arg"
+exec rasa run --enable-api --cors "*" --port "$PORT" --model "$model_arg"
