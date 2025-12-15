@@ -120,6 +120,25 @@ function CustomChatbot() {
     }
   };
 
+  // Quick local handling for trivial greetings/affirmations so UX feels responsive
+  // while we investigate the Rasa parsing issues. Returns true if handled.
+  const handleLocalShortcuts = async (message) => {
+    const m = (message || '').toLowerCase().trim();
+    // simple greeting
+    if (/^(hi|hello|hey|hey there|hi there)$/.test(m)) {
+      setMessages(prev => [...prev, { sender: 'bot', text: "Hey! I'm your interview prep assistant — type 'yes' when you're ready to start." }]);
+      return true;
+    }
+    // affirmative to start interview — forward a standardized trigger to Rasa
+    if (/^(yes|yeah|yep|sure|okay|ok|y)$/.test(m)) {
+      setMessages(prev => [...prev, { sender: 'bot', text: 'Great — starting the interview now...' }]);
+      // trigger the start_interview intent on Rasa
+      await sendMessageToRasa('start interview');
+      return true;
+    }
+    return false;
+  };
+
   const handleSend = async () => {
     if (!inputValue.trim()) return;
 
