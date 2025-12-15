@@ -145,6 +145,14 @@ function CustomChatbot() {
     const userMessage = inputValue.trim();
     setInputValue('');
 
+    // If a local shortcut handles this message (greeting/yes), let it handle UX
+    try {
+      const handled = await handleLocalShortcuts(userMessage);
+      if (handled) return;
+    } catch (e) {
+      console.warn('Local shortcut handler failed:', e);
+    }
+
     // Add user message to chat
     setMessages(prev => [...prev, { sender: 'user', text: userMessage }]);
 
