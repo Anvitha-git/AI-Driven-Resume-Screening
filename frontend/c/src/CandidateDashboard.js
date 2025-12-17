@@ -91,6 +91,9 @@ function CandidateDashboard() {
       throw err;
     }
   }, [navigate, tryRefreshToken]);
+  
+  // Refresh helper: fetch jobs, applications and notifications (stable across effects)
+  
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
   // Prevent back navigation from dashboard
   React.useEffect(() => {
@@ -229,10 +232,98 @@ function CandidateDashboard() {
     };
   }, [navigate, withAuth, loadNotificationPreferences]);
 
+  // Refresh jobs, applications and notifications. Define before polling
+  // so polling can call it without 'used before defined' errors.
+  const handleRefreshJobs = useCallback(() => {
+    const userId = localStorage.getItem('user_id');
+    const token = getAccessToken();
+
+    // Refresh jobs
+    withAuth(async (token2) => {
+      const res = await axios.get(`${API_URL}/jobs`, {
+        headers: { Authorization: `Bearer ${token2}` },
+      });
+      setJobs(res.data || []);
+    }).catch((err) => {
+      console.error('Error refreshing jobs:', err);
+    });
+
+    // Refresh applications
+    if (userId && token) {
+      withAuth(async (token2) => {
+        const res = await axios.get(`${API_URL}/applications/${userId}`, {
+          headers: { Authorization: `Bearer ${token2}` },
+        });
+        setApplications(res.data || []);
+      }).catch((err) => {
+        console.error('Error refreshing applications:', err);
+      });
+
+      // Refresh notifications
+      withAuth(async (token2) => {
+        const res = await axios.get(`${API_URL}/notifications/${userId}`, {
+          headers: { Authorization: `Bearer ${token2}` },
+        });
+        setNotifications(res.data || []);
+      }).catch((err) => console.error('Error refreshing notifications:', err));
+    }
+  }, [withAuth]);
+
   const handleFileChange = (jd_id) => (e) => {
     const file = e.target.files?.[0] || null;
     setSelectedFiles((prev) => ({ ...prev, [jd_id]: file }));
   };
+
+  // Refresh jobs, applications and notifications. Defined early so effects
+  // that run on mount or on job-status polling can call it without "used
+  // before defined" ESLint errors.
+  
+
+  // Refresh jobs, applications and notifications. Defined early so effects
+  // that run on mount or on job-status polling can call it without "used
+  // before defined" ESLint errors.
+  
+
+  // If a candidate has a `current_jd_id` (uploaded/applied), poll the job status
+  // so we can hide the chatbot when HR closes/ranks the job. This keeps the
+  // chatbot available until the job is explicitly closed by HR.
+  useEffect(() => {
+    const jdId = localStorage.getItem('current_jd_id');
+    if (!jdId) return;
+
+    let stopped = false;
+    let intervalId = null;
+
+    const checkJob = async () => {
+      try {
+        await withAuth(async (token) => {
+          const res = await axios.get(`${API_URL}/jobs/${jdId}`, { headers: { Authorization: `Bearer ${token}` } });
+          const job = res.data;
+          if (job && job.status === 'closed') {
+            // Clear the cached jd and notify the user
+            localStorage.removeItem('current_jd_id');
+            setAlertMessage('The job you applied to has been closed by HR. The chatbot is now hidden.');
+            setAlertType('success');
+            setShowAlertModal(true);
+            // Refresh lists to reflect latest state
+            handleRefreshJobs();
+            if (intervalId) {
+              clearInterval(intervalId);
+            }
+          }
+        });
+      } catch (err) {
+        // ignore transient errors; we'll retry on next tick
+        console.debug('Job status poll error:', err?.message || err);
+      }
+    };
+
+    // Immediate check and then periodic checks
+    checkJob();
+    intervalId = setInterval(() => { if (!stopped) checkJob(); }, 10000);
+
+    return () => { stopped = true; if (intervalId) clearInterval(intervalId); };
+  }, [withAuth]);
 
   // Helper to check if already applied to a job
   const hasAlreadyApplied = (jd_id) => {
@@ -493,40 +584,7 @@ const hasOpenApplication = () => {
     }
   };
 
-  const handleRefreshJobs = () => {
-    const userId = localStorage.getItem('user_id');
-  const token = getAccessToken();
-    
-    // Refresh jobs
-    withAuth(async (token2) => {
-      const res = await axios.get(`${API_URL}/jobs`, {
-        headers: { Authorization: `Bearer ${token2}` },
-      });
-      setJobs(res.data || []);
-    }).catch((err) => {
-      console.error('Error refreshing jobs:', err);
-    });
-    
-    // Refresh applications
-    if (userId && token) {
-      withAuth(async (token2) => {
-        const res = await axios.get(`${API_URL}/applications/${userId}`, {
-          headers: { Authorization: `Bearer ${token2}` },
-        });
-        setApplications(res.data || []);
-      }).catch((err) => {
-        console.error('Error refreshing applications:', err);
-      });
-      
-      // Refresh notifications
-      withAuth(async (token2) => {
-        const res = await axios.get(`${API_URL}/notifications/${userId}`, {
-          headers: { Authorization: `Bearer ${token2}` },
-        });
-        setNotifications(res.data || []);
-      }).catch((err) => console.error('Error refreshing notifications:', err));
-    }
-  };
+  
 
   function formatDateSafe(dateStr) {
     if (!dateStr) return '';
@@ -662,7 +720,8 @@ const hasOpenApplication = () => {
                     {(() => {
                       const name = localStorage.getItem('name');
                       if (name) {
-                        return name.charAt(0).toUpperCase() + name.slice(1);
+                        // Show the name exactly as the user set it
+                        return name;
                       }
                       const email = localStorage.getItem('email');
                       const userId = localStorage.getItem('user_id') || 'Candidate User';
@@ -928,6 +987,8 @@ const hasOpenApplication = () => {
               <div className="profile-info">
                 <h3 className="profile-name">
                   {(() => {
+                    const storedName = localStorage.getItem('name');
+                    if (storedName) return storedName;
                     const email = localStorage.getItem('email');
                     const userId = localStorage.getItem('user_id') || 'Candidate';
                     const base = email || userId;
@@ -999,11 +1060,11 @@ const hasOpenApplication = () => {
                 </div>
                 <div className="profile-info-item">
                   <span className="profile-info-label">Email</span>
-                  <span className="profile-info-value">{localStorage.getItem('email') || '—'}</span>
+                  <span className="profile-info-value">{localStorage.getItem('email') || 'ï¿½'}</span>
                 </div>
                 <div className="profile-info-item">
                   <span className="profile-info-label">User ID</span>
-                  <span className="profile-info-value">{localStorage.getItem('user_id') || '—'}</span>
+                  <span className="profile-info-value">{localStorage.getItem('user_id') || 'ï¿½'}</span>
                 </div>
                 <div className="profile-info-item">
                   <span className="profile-info-label">Member Since</span>
@@ -1297,7 +1358,7 @@ const hasOpenApplication = () => {
         )}
 
         {/* Chatbot: Show when resume uploaded OR testing flag is enabled */}
-        {(CHATBOT_ALWAYS_VISIBLE || hasOpenApplication()) && <CustomChatbot />}
+        {(CHATBOT_ALWAYS_VISIBLE || hasOpenApplication() || Boolean(localStorage.getItem('current_jd_id'))) && <CustomChatbot />}
 
         {/* Password Change Modal */}
         {showPasswordModal && (
@@ -1427,7 +1488,7 @@ const hasOpenApplication = () => {
             <div className="modal-content" onClick={(e) => e.stopPropagation()}>
               <div className="modal-header">
                 <h3>Edit Name</h3>
-                <button className="modal-close" onClick={() => setShowEditNameModal(false)}>×</button>
+                <button className="modal-close" onClick={() => setShowEditNameModal(false)}>ï¿½</button>
               </div>
               <div className="modal-body">
                 <div className="form-group">
@@ -1459,20 +1520,22 @@ const hasOpenApplication = () => {
         {showAlertModal && (
           <div className="modal-overlay" onClick={() => setShowAlertModal(false)}>
             <div className="modal-content" onClick={e => e.stopPropagation()} style={{maxWidth: '400px', padding: '32px', textAlign: 'center'}}>
-              <div style={{
-                width: '64px',
-                height: '64px',
-                borderRadius: '50%',
-                backgroundColor: alertType === 'success' ? '#10b981' : '#ef4444',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                margin: '0 auto 24px',
-                color: 'white',
-                fontSize: '32px',
-                fontWeight: 'bold'
-              }}>
-                {alertType === 'success' ? '?' : '!'}
+              <div style={{ marginBottom: '1.25rem' }}>
+                {alertType === 'success' ? (
+                  <div style={{ width: 64, height: 64, borderRadius: '50%', background: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto', boxShadow: '0 4px 16px rgba(16, 185, 129, 0.3)' }}>
+                    <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="20 6 9 17 4 12"/>
+                    </svg>
+                  </div>
+                ) : (
+                  <div style={{ width: 64, height: 64, borderRadius: '50%', background: '#ef4444', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto', boxShadow: '0 4px 16px rgba(239, 68, 68, 0.3)' }}>
+                    <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="10"/>
+                      <line x1="12" y1="8" x2="12" y2="12"/>
+                      <line x1="12" y1="16" x2="12.01" y2="16"/>
+                    </svg>
+                  </div>
+                )}
               </div>
               <div className="modal-body" style={{padding: '0 0 24px 0'}}>
                 <p style={{margin: 0, fontSize: '16px', lineHeight: '1.5'}}>{alertMessage}</p>

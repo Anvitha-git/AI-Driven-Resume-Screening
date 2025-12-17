@@ -4,12 +4,17 @@ from supabase import create_client, Client
 import os
 from dotenv import load_dotenv
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from fastapi import Request
 from pydantic import BaseModel
 from typing import List, Optional, Dict
 import uuid
 import logging
 from ai_processor import extract_text, extract_structured_data, rank_resumes, extract_skills_from_text
 import requests
+import httpx
+import time
+from requests.exceptions import RequestException, ConnectionError
 from urllib.parse import urlparse
 from email_service import send_decision_email
 
@@ -21,6 +26,9 @@ load_dotenv()
 # Create the FastAPI app as early as possible so decorators evaluated during
 # module import time (e.g. in CI or remote builds) always find `app` defined.
 app = FastAPI()
+
+# Debug storage for last proxy request/response (temporary)
+rasa_proxy_last = {"payload": None, "response": None}
 
 # Create two separate clients:
 # - supabase_auth: used ONLY for auth operations (sign up/in, token validation)
@@ -53,6 +61,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+# Global exception handler to ensure the server returns JSON responses
+# (and lets CORS middleware attach required headers) instead of opaque 502s
+@app.exception_handler(Exception)
+async def all_exception_handler(request: Request, exc: Exception):
+    logging.exception("Unhandled exception: %s", exc)
+    # Include the exception text for local debugging; in production you may
+    # want to hide `str(exc)` to avoid leaking internals.
+    return JSONResponse(status_code=500, content={"detail": "Internal server error", "error": str(exc)})
+
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
 # Rasa proxy: forwarding endpoint to talk to the chatbot server
@@ -66,20 +84,111 @@ async def rasa_proxy(payload: dict):
     the Rasa URL as a secret/config on the server).
     """
     # Read RASA_URL from env. Support both base URLs and full webhook URLs.
-    rasa_base = os.getenv('RASA_URL', 'http://localhost:5005')
+    # Prefer IPv4 loopback to avoid IPv6/localhost resolution issues on some systems.
+    rasa_base = os.getenv('RASA_URL', 'http://127.0.0.1:5005')
     rasa_base = rasa_base.rstrip('/')
     # If the provided RASA_URL already contains the webhook path, avoid appending it twice
     if rasa_base.endswith('/webhooks/rest/webhook'):
         target = rasa_base
     else:
         target = rasa_base + '/webhooks/rest/webhook'
+    # Retry a few times for transient connection errors (Rasa still starting,
+    # or temporary network hiccups). Use exponential backoff.
+    attempts = 3
+    backoff = 1
+    last_exc = None
+    # Normalize simple user confirmations to explicit intent messages so
+    # the running Rasa server correctly interprets them even if NLU
+    # model confidence is low or the model is out-of-date.
+    logging.info(f"Rasa proxy received payload: {payload}")
+    normalized_confirmation = False
     try:
-        resp = requests.post(target, json=payload, timeout=15)
-        resp.raise_for_status()
-        return resp.json()
-    except Exception as e:
-        logging.exception(f"Rasa proxy error when calling {target}: {e}")
-        raise HTTPException(status_code=502, detail=f"Rasa proxy error: {str(e)}")
+        msg = None
+        if isinstance(payload, dict):
+            msg = payload.get("message") or payload.get("text")
+            if isinstance(msg, str):
+                m = msg.strip().lower()
+                if m in ("yes", "y", "yeah", "yep", "sure", "ok", "okay"):
+                    # Force an intent message so Rasa treats it as an `affirm`
+                    payload["message"] = "/affirm"
+                    normalized_confirmation = True
+                elif m in ("no", "nah", "nope", "not now"):
+                    payload["message"] = "/deny"
+    except Exception:
+        # Don't block proxied request on edge-case normalization failures
+        logging.debug("Rasa proxy: normalization step failed; forwarding raw payload")
+
+    # Quick demo fallback: if the user just sent a plain confirmation and Rasa
+    # or actions are not yet responding, return a friendly start message so the
+    # demo can proceed. This is temporary and can be removed once Rasa/actions
+    # are verified working.
+    try:
+        if normalized_confirmation and payload.get("message") == "/affirm":
+            # Only use demo fallback when no user metadata (i.e., frontend didn't
+            # include user_id/jd_id). If metadata exists, forward to Rasa so the
+            # action can use resume/JD context to generate personalized questions.
+            meta = None
+            try:
+                meta = payload.get("metadata") if isinstance(payload, dict) else None
+            except Exception:
+                meta = None
+
+            has_user_meta = bool(meta and (meta.get("user_id") or meta.get("jd_id")))
+            if not has_user_meta:
+                intro = "Great! Let's do a quick 2-min interview prep. I'll ask you a few short questions to help you practice. 🚀"
+                question = "Question 1: Tell me about a recent project you're proud of. (1-2 sentences)"
+                demo_resp = [{"text": intro}, {"text": question}]
+                logging.info("Rasa proxy: returning demo fallback for confirmation message (no metadata present)")
+                # store for debug endpoint
+                try:
+                    rasa_proxy_last["payload"] = payload
+                    rasa_proxy_last["response"] = demo_resp
+                except Exception:
+                    pass
+                return demo_resp
+            else:
+                logging.info("Rasa proxy: metadata present; forwarding affirmative message to Rasa for personalized flow")
+    except Exception:
+        logging.exception("Rasa proxy: demo fallback generation failed; continuing to proxy")
+
+    async with httpx.AsyncClient(timeout=60) as client:
+        for attempt in range(1, attempts + 1):
+            try:
+                logging.debug(f"Rasa proxy attempt {attempt} -> {target}")
+                resp = await client.post(target, json=payload)
+                resp.raise_for_status()
+                try:
+                    data = resp.json()
+                    # store proxied response for debugging
+                    try:
+                        rasa_proxy_last["payload"] = payload
+                        rasa_proxy_last["response"] = data
+                    except Exception:
+                        pass
+                    return data
+                except Exception as decode_err:
+                    logging.exception(f"Rasa proxy: failed to decode JSON from {target}: {decode_err}")
+                    raise HTTPException(status_code=502, detail=f"Rasa proxy decode error: {str(decode_err)}")
+            except httpx.ConnectError as conn_err:
+                # Connection refused or similar — retry briefly
+                logging.warning(f"Rasa proxy connection error on attempt {attempt}: {conn_err}")
+                last_exc = conn_err
+                if attempt < attempts:
+                    time.sleep(backoff)
+                    backoff *= 2
+                    continue
+                logging.exception(f"Rasa proxy connection failed after {attempts} attempts: {conn_err}")
+                raise HTTPException(status_code=502, detail=f"Rasa proxy connection error: {str(conn_err)}")
+            except httpx.HTTPStatusError as http_err:
+                logging.exception(f"Rasa proxy HTTP error when calling {target}: {http_err}")
+                raise HTTPException(status_code=502, detail=f"Rasa proxy HTTP error: {str(http_err)}")
+            except httpx.RequestError as req_err:
+                # Network-level or timeout errors
+                logging.exception(f"Rasa proxy network error when calling {target}: {req_err}")
+                raise HTTPException(status_code=502, detail=f"Rasa proxy network error: {str(req_err)}")
+            except Exception as e:
+                logging.exception(f"Rasa proxy unexpected error when calling {target}: {e}")
+                raise HTTPException(status_code=502, detail=f"Rasa proxy error: {str(e)}")
 
 # Pydantic models
 class JobPosting(BaseModel):
@@ -763,20 +872,36 @@ async def get_resumes(jd_id: str, user=Depends(get_current_user)):
         # Always normalize file_url to a string public URL
         for r in resumes:
             r["file_url"] = _signed_url_for(r.get("file_url"))
-        # Fetch candidate emails to avoid showing UUIDs
+        # Fetch candidate names/emails to avoid showing UUIDs
         user_ids = list({r.get("user_id") for r in resumes if r.get("user_id")})
+        logging.info(f"[RESUMES] Fetching names for user_ids: {user_ids}")
         emails_map = {}
+        names_map = {}
         if user_ids:
             try:
-                profiles = supabase_service.table("user_profiles").select("user_id, email").in_("user_id", user_ids).execute()
+                profiles = supabase_service.table("user_profiles").select("user_id, email, name").in_("user_id", user_ids).execute()
+                logging.info(f"[RESUMES] Profiles query returned: {profiles.data}")
                 for p in (profiles.data or []):
                     emails_map[p["user_id"]] = p["email"]
+                    names_map[p["user_id"]] = p.get("name")
+                logging.info(f"[RESUMES] Names map: {names_map}")
             except Exception as e:
-                logging.warning(f"get_resumes: could not fetch user emails: {e}")
-        # Add rank and email field
+                logging.warning(f"get_resumes: could not fetch user emails/names: {e}")
+        # Add rank and friendly identity fields
         for idx, resume in enumerate(resumes):
             resume['rank'] = idx + 1
-            resume.setdefault('user_email', emails_map.get(resume.get('user_id')))
+            user_id = resume.get('user_id')
+            name = names_map.get(user_id)
+            email = emails_map.get(user_id)
+            logging.info(f"[RESUMES] Resume {idx}: user_id={user_id}, name={name}, email={email}")
+            # Use name if available, fallback to email username, then email, then user_id
+            if name:
+                resume['user_name'] = name
+            elif email:
+                resume['user_name'] = email.split('@')[0] if '@' in email else email
+            else:
+                resume['user_name'] = user_id or 'Unknown'
+            resume.setdefault('user_email', email)
         return resumes
     except Exception as e:
         logging.exception("Error fetching resumes")
@@ -1097,6 +1222,16 @@ async def submit_decisions(jd_id: str, user=Depends(get_current_user)):
 @app.get("/")
 async def root():
     return {"message": "Hello from FastAPI!"}
+
+
+@app.get("/__debug/rasa-proxy")
+async def debug_rasa_proxy():
+    """Return the last received payload and response from the Rasa proxy (debug only)."""
+    try:
+        return rasa_proxy_last
+    except Exception as e:
+        logging.exception("Failed to read rasa_proxy_last")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/test-resume/{user_id}/{jd_id}")
 async def test_resume(user_id: str, jd_id: str):

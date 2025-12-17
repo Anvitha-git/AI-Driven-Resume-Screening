@@ -11,9 +11,10 @@
 # https://rasa.com/docs/rasa/custom-actions
 
 action_endpoint:
-  # Updated to point to the deployed actions server on Render
-  # Use the Render URL for the actions service and the standard actions path
-  url: "https://ai-driven-resume-screening-chatbot-1hmx.onrender.com/webhooks/actions"
+  # For local development point to the local actions server (default path)
+  # Rasa action server exposes the endpoint at /webhook by default.
+  # When running locally use: rasa run actions --port 5055
+  url: "http://127.0.0.1:5055/webhook"
 
 # Tracker store which is used to store the conversations.
 # By default the conversations are stored in memory.

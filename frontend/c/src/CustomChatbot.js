@@ -120,49 +120,19 @@ function CustomChatbot() {
     }
   };
 
-  // Quick local handling for trivial greetings/affirmations so UX feels responsive
-  // while we investigate the Rasa parsing issues. Returns true if handled.
-  const handleLocalShortcuts = async (message) => {
-    const m = (message || '').toLowerCase().trim();
-    // simple greeting
-    if (/^(hi|hello|hey|hey there|hi there)$/.test(m)) {
-      setMessages(prev => [...prev, { sender: 'bot', text: "Hey! I'm your interview prep assistant — type 'yes' when you're ready to start." }]);
-      return true;
-    }
-    // affirmative to start interview — forward a standardized trigger to Rasa
-    if (/^(yes|yeah|yep|sure|okay|ok|y)$/.test(m)) {
-      setMessages(prev => [...prev, { sender: 'bot', text: 'Great — starting the interview now...' }]);
-      // trigger the start_interview intent on Rasa
-      await sendMessageToRasa('start interview');
-      return true;
-    }
-    return false;
-  };
+  // No local shortcuts: always send user input to Rasa so behaviour matches
+  // the original chatbot. This avoids duplicating bot messages and keeps
+  // Rasa as the single source of truth for responses.
 
   const handleSend = async () => {
     if (!inputValue.trim()) return;
 
     const userMessage = inputValue.trim();
     setInputValue('');
-
-    // If a local shortcut handles this message (greeting/yes), let it handle UX
-    try {
-      const handled = await handleLocalShortcuts(userMessage);
-      if (handled) return;
-    } catch (e) {
-      console.warn('Local shortcut handler failed:', e);
-    }
-
-    // Add user message to chat
+    // Add user message to chat and send to Rasa
     setMessages(prev => [...prev, { sender: 'user', text: userMessage }]);
-
-    // Show loading
     setIsLoading(true);
-
-    // Send to Rasa
     await sendMessageToRasa(userMessage);
-
-    // Hide loading
     setIsLoading(false);
   };
 

@@ -15,3 +15,8 @@ rules:
   steps:
   - intent: ask_question
   - action: action_answer_general_question
+
+- rule: Start interview on simple affirmation
+  steps:
+  - intent: affirm
+  - action: action_start_interview_prep

@@ -80,6 +80,12 @@ class ActionStartInterviewPrep(Action):
             return []
 
         # Fetch resume + JD from Backend API (enhanced with extracted data)
+        # Initialize context variables so the action is robust to timeouts
+        resume_data = {}
+        jd_data = {}
+        skill_analysis = {}
+        question_hints = {}
+
         skills = []
         experience = []
         jd_title = "this role"
@@ -89,22 +95,43 @@ class ActionStartInterviewPrep(Action):
         
         try:
             # Use the new chatbot context endpoint for better data
-            context_url = f"{BACKEND_URL}/chatbot/candidate-context/{user_id}/{jd_id}"
-            print(f"[DEBUG] 📡 Fetching context from: {context_url}")
-            
-            context_resp = requests.get(context_url, timeout=10)
-            print(f"[DEBUG] Context response status: {context_resp.status_code}")
-            
-            if context_resp.status_code == 200:
-                context = context_resp.json()
-                print("[DEBUG] ✅ Successfully fetched context from backend!")
-                print(f"[DEBUG] Context keys: {context.keys()}")
-                
+            base_context_url = f"{BACKEND_URL}/chatbot/candidate-context/{user_id}/{jd_id}"
+            # Try several possible hostnames to be resilient in Docker/local setups
+            candidate_urls = [
+                base_context_url,
+                base_context_url.replace("localhost", "127.0.0.1"),
+                base_context_url.replace("localhost", "host.docker.internal")
+            ]
+
+            context = None
+            last_exc = None
+            for url in candidate_urls:
+                try:
+                    print(f"[DEBUG] 📡 Attempting to fetch context from: {url}")
+                    resp = requests.get(url, timeout=15)
+                    print(f"[DEBUG] Context response status from {url}: {getattr(resp, 'status_code', None)}")
+                    if resp.status_code == 200:
+                        context = resp.json()
+                        print("[DEBUG] ✅ Successfully fetched context from backend!")
+                        break
+                    else:
+                        print(f"[WARNING] Received non-200 ({resp.status_code}) from {url}")
+                except requests.exceptions.ReadTimeout as rt:
+                    print(f"[WARNING] ReadTimeout when contacting {url}: {rt}")
+                    last_exc = rt
+                except requests.exceptions.ConnectionError as ce:
+                    print(f"[WARNING] ConnectionError when contacting {url}: {ce}")
+                    last_exc = ce
+                except Exception as e:
+                    print(f"[WARNING] Error when contacting {url}: {e}")
+                    last_exc = e
+
+            if context:
                 resume_data = context.get("resume", {})
                 jd_data = context.get("job_description", {})
                 skill_analysis = context.get("skill_analysis", {})
                 question_hints = context.get("question_hints", {})
-                
+
                 # Extract key info
                 skills = resume_data.get("skills", []) or []
                 experience = resume_data.get("experience", []) or []
@@ -112,66 +139,87 @@ class ActionStartInterviewPrep(Action):
                 matched_skills = skill_analysis.get("matched_skills", [])
                 missing_skills = skill_analysis.get("missing_skills", [])
                 focus_areas = question_hints.get("focus_areas", [])
-                
+
                 print(f"[DEBUG] Skills: {skills}")
                 print(f"[DEBUG] Experience: {experience}")
                 print(f"[DEBUG] Matched Skills: {matched_skills}")
                 print(f"[DEBUG] Missing Skills: {missing_skills}")
                 print(f"[DEBUG] Focus Areas: {focus_areas}")
-                
             else:
-                # Fallback to old method if new endpoint fails
-                print(f"[WARNING] ⚠️ Backend context endpoint failed (status {context_resp.status_code}), falling back to direct Supabase query")
-                raise Exception("Using fallback method")
-        
+                print(f"[WARNING] ⚠️ Could not fetch chatbot context from backend. Last error: {last_exc}")
+                # Keep initialized empty context so question generation can fall back
+
         except Exception as e:
-            print(f"[WARNING] Backend endpoint failed: {e}. Will try to use backend data if available, otherwise showing error...")
+            print(f"[WARNING] Backend endpoint fetch failed with unexpected error: {e}. Falling back to generic questions.")
             import traceback
             traceback.print_exc()
         
-        # Generate 3-5 personalized questions based on extracted data
+        # Generate 4-5 personalized questions based on extracted data
         questions = []
 
-        # 1-2 questions from matched skills (skills they have AND JD needs)
-        for i, skill in enumerate(matched_skills[:2]):
-            questions.append(f"Tell me about a project where you used {skill.upper()} — what was your biggest challenge? (1-2 sentences)")
+        # Add questions focused on matched skills (one per top matched skill)
+        for skill in matched_skills[:3]:
+            s = skill.strip()
+            if s:
+                questions.append(f"Tell me about a project where you used {s}. What was the biggest challenge and how did you overcome it? (1-2 sentences)")
 
-        # 1 question from missing skills (JD needs but they don't have)
-        if missing_skills and len(missing_skills) > 0:
-            skill = missing_skills[0]
-            questions.append(f"The role requires {skill.upper()} — how would you approach learning it quickly? (1-2 sentences)")
+        # Add questions about growth areas (missing skills) - ask approach to learn
+        for skill in missing_skills[:2]:
+            s = skill.strip()
+            if s:
+                questions.append(f"The role mentions {s}. How would you go about learning or applying {s} quickly in a real project? (1-2 sentences)")
 
-        # 1 question from experience
-        if experience and len(experience) > 0:
-            exp = experience[0] if isinstance(experience, list) else {}
-            if isinstance(exp, dict):
-                role = exp.get('role', 'your previous role')
-                company = exp.get('company', '')
-                if company:
-                    questions.append(f"At {company} as {role}, what was your proudest achievement? (1-2 sentences)")
-                else:
-                    questions.append(f"In {role}, what's one thing you learned that you'd apply here? (1-2 sentences)")
-            else:
-                questions.append(f"Tell me about your most impactful project. (1-2 sentences)")
+        # Experience-based questions (ask for achievements or key responsibilities)
+        if isinstance(experience, list) and len(experience) > 0:
+            for exp in experience[:2]:
+                if isinstance(exp, dict):
+                    role = exp.get('role') or exp.get('title') or 'your previous role'
+                    company = exp.get('company') or ''
+                    if company:
+                        questions.append(f"At {company} as {role}, what was one measurable outcome you achieved? (1-2 sentences)")
+                    else:
+                        questions.append(f"In {role}, what's one thing you learned that you'd apply here? (1-2 sentences)")
 
-        # 1 behavioral question
-        questions.append(f"Describe a time you solved a difficult technical problem — how did you approach it? (1-2 sentences)")
+        # Education/project-specific questions using resume preview (if available)
+        resume_preview = (resume_data.get('extracted_text_preview') or '')
+        if resume_preview:
+            # If resume mentions 'project' or 'thesis' pull a short snippet to ask about
+            try:
+                if 'project' in resume_preview.lower():
+                    # Ask a generic project-question referencing resume
+                    questions.append("I see you listed projects on your resume — what's one project you led and what was the outcome? (1-2 sentences)")
+            except Exception:
+                pass
 
-        # 1 motivation question
+        # Behavioral + motivation
+        questions.append("Describe a time you solved a difficult technical problem — how did you approach it? (1-2 sentences)")
         questions.append(f"Why are you excited about the {jd_title} position? (1-2 sentences)")
 
-        # Ensure we have questions even if some sections are empty
-        if len(questions) < 3:
-            questions.extend([
-                "Tell me about a recent project you're proud of. (1-2 sentences)",
-                "How do you stay updated with new technologies? (1-2 sentences)",
-                "What's your biggest strength as a developer? (1-2 sentences)"
-            ])
+        # Deduplicate while preserving order
+        seen = set()
+        uniq = []
+        for q in questions:
+            if q not in seen:
+                uniq.append(q)
+                seen.add(q)
+        questions = uniq
 
-        # Shuffle and limit to 3-5 questions for variety per candidate
-        random.shuffle(questions)
-        num_questions = random.randint(3, min(5, len(questions)))
-        questions = questions[:num_questions]
+        # If we still have fewer than 4 questions, pad with resume-relevant prompts
+        pad_pool = [
+            "How do you stay updated with new technologies? (1-2 sentences)",
+            "What's your biggest strength as a developer? (1-2 sentences)",
+            "Tell me about a technical decision you made and why. (1-2 sentences)"
+        ]
+        i = 0
+        while len(questions) < 4 and i < len(pad_pool):
+            questions.append(pad_pool[i])
+            i += 1
+
+        # Limit to 4-5 questions (prefer 5 if available)
+        if len(questions) >= 5:
+            questions = questions[:5]
+        elif len(questions) >= 4:
+            questions = questions[:4]
         
         print(f"[DEBUG] 🎯 Generated {len(questions)} personalized questions:")
         for i, q in enumerate(questions, 1):

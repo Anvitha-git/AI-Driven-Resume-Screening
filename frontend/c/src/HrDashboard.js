@@ -101,13 +101,15 @@ function HrDashboard() {
       const mapped = list.map(r => ({
         id: r.resume_id,
         rank: r.rank,
-        candidate: r.user_email || r.user_id,
+        candidateName: r.user_name || r.user_email || r.user_id,
+        candidateEmail: r.user_email,
         score: typeof r.score === 'number' ? (r.score * 100).toFixed(1) : r.score,
         explanation: r.explanation,
         file_url: r.file_url,
         resume_id: r.resume_id,
         decision: r.decision || 'pending',
       }));
+      console.log('Mapped candidates:', mapped);
       setCandidates(mapped);
       setCurrentJobId(jdId); // Track the job ID for later submission
       setOpenCandidatesDialog(true);
@@ -167,7 +169,6 @@ function HrDashboard() {
   const [historyJobCandidates, setHistoryJobCandidates] = useState([]);
   const [activePage, setActivePage] = useState('new-job'); // 'new-job', 'job-postings', 'history', 'profile', 'analytics', 'settings', 'help', 'interviews', 'team'
   const [candidatesSearchTerm, setCandidatesSearchTerm] = useState('');
-  const [candidatesFilterTab, setCandidatesFilterTab] = useState('all'); // 'all', 'skills', 'experience', 'match-score'
   const [decisionFilter, setDecisionFilter] = useState('all'); // 'all', 'selected', 'rejected', 'pending'
   // Notification preferences state (HR)
   const [preferences, setPreferences] = useState({
@@ -287,10 +288,21 @@ function HrDashboard() {
     return dateStr;
   };
 
-  // Utility function to format candidate name from email or ID
+  // Utility: prefer profile name, else prettified email, else id
   const formatCandidateName = (candidateData) => {
     if (!candidateData) return 'Unknown';
-    // If candidateData is a string (legacy behavior), process it
+
+    // If we receive an object with name/email fields
+    if (typeof candidateData === 'object') {
+      if (candidateData.name) return candidateData.name;
+      if (candidateData.email) {
+        const raw = candidateData.email;
+        const pretty = raw.includes('@') ? raw.split('@')[0] : raw;
+        return pretty.charAt(0).toUpperCase() + pretty.slice(1);
+      }
+      candidateData = candidateData.id || candidateData.value || '';
+    }
+
     if (typeof candidateData === 'string') {
       if (candidateData.includes('@')) {
         const name = candidateData.split('@')[0];
@@ -298,8 +310,8 @@ function HrDashboard() {
       }
       return candidateData;
     }
-    // If it's the full candidate object, return as is
-    return candidateData;
+
+    return 'Unknown';
   };
 
   // Function to handle weight changes and auto-adjust others to maintain total = 1.0
@@ -1256,27 +1268,6 @@ function HrDashboard() {
               />
             </div>
 
-            <div className="candidates-filter-tabs">
-              <button 
-                className={`filter-tab ${candidatesFilterTab === 'all' ? 'active' : ''}`}
-                onClick={() => setCandidatesFilterTab('all')}
-              >
-                All Candidates
-              </button>
-              <button 
-                className={`filter-tab ${candidatesFilterTab === 'experience' ? 'active' : ''}`}
-                onClick={() => setCandidatesFilterTab('experience')}
-              >
-                By Experience
-              </button>
-              <button 
-                className={`filter-tab ${candidatesFilterTab === 'match-score' ? 'active' : ''}`}
-                onClick={() => setCandidatesFilterTab('match-score')}
-              >
-                By Match Score
-              </button>
-            </div>
-
             <h3 className="ranked-candidates-heading">Ranked Candidates</h3>
           </div>
 
@@ -1285,7 +1276,7 @@ function HrDashboard() {
             {candidates
               .filter((c) => {
                 // Filter by search term
-                const name = formatCandidateName(c.candidate).toLowerCase();
+                const name = formatCandidateName({ name: c.candidateName, email: c.candidateEmail }).toLowerCase();
                 const search = candidatesSearchTerm.toLowerCase();
                 const matchesSearch = !search || name.includes(search);
                 
@@ -1294,24 +1285,13 @@ function HrDashboard() {
                 
                 return matchesSearch && matchesDecision;
               })
-              .sort((a, b) => {
-                // Sort based on selected filter tab
-                if (candidatesFilterTab === 'match-score') {
-                  return (b.score || 0) - (a.score || 0); // Highest score first
-                } else if (candidatesFilterTab === 'experience') {
-                  // Sort by experience (you can customize this based on your data structure)
-                  const expA = a.candidate?.experience?.length || 0;
-                  const expB = b.candidate?.experience?.length || 0;
-                  return expB - expA;
-                } else {
-                  // Default: sort by match score
-                  return (b.score || 0) - (a.score || 0);
-                }
-              })
+              .sort((a, b) => (b.score || 0) - (a.score || 0)) // Sort by score (highest first)
               .map((candidate) => (
               <div key={candidate.id} className="candidate-card">
                 <div className="candidate-card-content">
-                  <h4 className="candidate-name">{formatCandidateName(candidate.candidate)}</h4>
+                  <h4 className="candidate-name">
+                    {candidate.candidateName || candidate.candidateEmail || 'Candidate'}
+                  </h4>
                   <div className="candidate-scores">
                     <span className="candidate-score-item">Match Score: {candidate.score}%</span>
                     <span className="candidate-score-divider">|</span>

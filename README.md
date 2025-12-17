@@ -401,6 +401,44 @@ rasa run --enable-api --cors "*" --port 5005
 
 ---
 
+## 📷 Screenshots / Assets
+
+Project screenshots are included in the `assets/` folder. A quick visual gallery is shown below — each image is also committed in the repository under `assets/`.
+
+- Candidate Dashboard
+
+![Candidate Dashboard](assets/candidate%20dashboard.jpg)
+
+- Chatbot Conversation
+
+![Chatbot](assets/chatbot.jpg)
+
+- HR Dashboard
+
+![HR Dashboard](assets/hr%20dashboard.jpg)
+
+- Landing Page
+
+![Landing Page](assets/landing%20page.jpg)
+
+- LIME Explainability Example
+
+![LIME Explainability](assets/LIME.jpg)
+
+- Login Page
+
+![Login Page](assets/login%20page.jpg)
+
+- Resume Ranking View
+
+![Resume Ranking](assets/resume%20ranking.jpg)
+
+- Signup Page
+
+![Signup Page](assets/signup%20page.jpg)
+
+---
+
 ## 📚 Documentation
 
 Detailed documentation for each component is available in the `docs/` folder:
