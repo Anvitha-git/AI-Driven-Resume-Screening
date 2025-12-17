@@ -401,9 +401,7 @@ rasa run --enable-api --cors "*" --port 5005
 
 ---
 
-## 📷 Screenshots / Assets
-
-Project screenshots are included in the `assets/` folder. A quick visual gallery is shown below — each image is also committed in the repository under `assets/`.
+## 📷 Screenshots
 
 - Candidate Dashboard
 
