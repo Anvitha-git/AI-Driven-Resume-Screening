@@ -565,7 +565,13 @@ Karnataka, India
 
 ## 📝 License
 
-This project is developed for academic purposes as part of the curriculum at CMR Institute of Technology, Bengaluru.
+This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
+
+---
+
+## 🤝 Contributing
+
+Contributions are welcome! This project is open for contributors — feel free to open issues or submit pull requests. Please follow the existing code style and include tests or documentation updates for non-trivial changes. For major changes, open an issue first to discuss the proposal.
 
 ---
 
