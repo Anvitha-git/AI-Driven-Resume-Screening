@@ -4,6 +4,7 @@ import axios from 'axios';
 import './Dashboard.css';
 import './ExplanationModal.css';
 import API_URL from './config';
+import SkeletonLoader from './components/SkeletonLoader';
 
 function HrDashboard() {
       // To show the modal, call:
@@ -87,6 +88,7 @@ function HrDashboard() {
   // Handler for ranking resumes for a job
   const handleRankResumes = async (jdId) => {
     setRankingJob(jdId);
+    setCandidatesLoading(true);
     try {
       const list = await withAuth(async (token) => {
         await axios.post(`${API_URL}/rank-resumes/${jdId}`, {}, {
@@ -130,6 +132,7 @@ function HrDashboard() {
       setAlertType('error'); setAlertMessage(msg); setShowAlertModal(true);
     }
     setRankingJob(null);
+    setCandidatesLoading(false);
   };
 
   // Handler for opening a job in history
@@ -159,14 +162,17 @@ function HrDashboard() {
   });
   
   const [candidates, setCandidates] = useState([]);
+  const [candidatesLoading, setCandidatesLoading] = useState(false);
   const [currentJobId, setCurrentJobId] = useState(null); // Track which job's candidates are being viewed
   const [openCandidatesDialog, setOpenCandidatesDialog] = useState(false);
   const [rankingJob, setRankingJob] = useState(null);
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
   const [showSideDrawer, setShowSideDrawer] = useState(false);
   const [hrJobsHistory, setHrJobsHistory] = useState([]);
+  const [hrJobsLoading, setHrJobsLoading] = useState(false);
   const [selectedHistoryJob, setSelectedHistoryJob] = useState(null);
   const [historyJobCandidates, setHistoryJobCandidates] = useState([]);
+  const [historyJobCandidatesLoading, setHistoryJobCandidatesLoading] = useState(false);
   const [activePage, setActivePage] = useState('new-job'); // 'new-job', 'job-postings', 'history', 'profile', 'analytics', 'settings', 'help', 'interviews', 'team'
   const [candidatesSearchTerm, setCandidatesSearchTerm] = useState('');
   const [decisionFilter, setDecisionFilter] = useState('all'); // 'all', 'selected', 'rejected', 'pending'
@@ -366,6 +372,7 @@ function HrDashboard() {
           console.error('Failed to fetch jobs', error);
         }
       } else if (activePage === 'history') {
+        setHrJobsLoading(true);
         try {
           await withAuth(async (token) => {
             const response = await axios.get(`${API_URL}/hr/jobs`, {
@@ -390,6 +397,8 @@ function HrDashboard() {
           });
         } catch (error) {
           console.error('Failed to fetch HR jobs history', error);
+        } finally {
+          setHrJobsLoading(false);
         }
       }
     };
@@ -447,6 +456,7 @@ function HrDashboard() {
   };
 
   const fetchCandidatesForJob = async (jdId) => {
+    setHistoryJobCandidatesLoading(true);
     try {
       await withAuth(async (token) => {
         const response = await axios.get(`${API_URL}/hr/jobs/${jdId}/candidates`, {
@@ -456,6 +466,8 @@ function HrDashboard() {
       });
     } catch (error) {
       console.error('Failed to fetch job candidates', error);
+    } finally {
+      setHistoryJobCandidatesLoading(false);
     }
   };
 
@@ -1155,9 +1167,11 @@ function HrDashboard() {
         <div className="dashboard-card">
           <h2 className="dashboard-card-title">Job Postings History</h2>
           <div className="drawer-job-list">
-            {hrJobsHistory.length === 0 && (
+            {hrJobsLoading ? (
+              <SkeletonLoader count={3} />
+            ) : hrJobsHistory.length === 0 ? (
               <div className="drawer-empty">No jobs yet.</div>
-            )}
+            ) : null}
             {hrJobsHistory.map((job) => {
               const candidates = job.candidates || [];
               const total = candidates.length;
@@ -1187,7 +1201,9 @@ function HrDashboard() {
             <div className="drawer-section">
               <div className="drawer-section-title">Candidates for: {selectedHistoryJob.title}</div>
               <div className="drawer-candidates-list">
-                {historyJobCandidates.length === 0 ? (
+                {historyJobCandidatesLoading ? (
+                  <SkeletonLoader count={3} />
+                ) : historyJobCandidates.length === 0 ? (
                   <div className="drawer-empty">No candidates applied yet.</div>
                 ) : (
                   <table className="drawer-table">
@@ -1272,61 +1288,65 @@ function HrDashboard() {
           </div>
 
           {/* Candidate Cards */}
-          <div className="candidates-cards-container">
-            {candidates
-              .filter((c) => {
-                // Filter by search term
-                const name = formatCandidateName({ name: c.candidateName, email: c.candidateEmail }).toLowerCase();
-                const search = candidatesSearchTerm.toLowerCase();
-                const matchesSearch = !search || name.includes(search);
-                
-                // Filter by decision status
-                const matchesDecision = decisionFilter === 'all' || c.decision === decisionFilter;
-                
-                return matchesSearch && matchesDecision;
-              })
-              .sort((a, b) => (b.score || 0) - (a.score || 0)) // Sort by score (highest first)
-              .map((candidate) => (
-              <div key={candidate.id} className="candidate-card">
-                <div className="candidate-card-content">
-                  <h4 className="candidate-name">
-                    {candidate.candidateName || candidate.candidateEmail || 'Candidate'}
-                  </h4>
-                  <div className="candidate-scores">
-                    <span className="candidate-score-item">Match Score: {candidate.score}%</span>
-                    <span className="candidate-score-divider">|</span>
-                    <span className="candidate-score-item">Explainable AI Score: {candidate.score}</span>
+          {candidatesLoading ? (
+            <SkeletonLoader count={4} />
+          ) : (
+            <div className="candidates-cards-container">
+              {candidates
+                .filter((c) => {
+                  // Filter by search term
+                  const name = formatCandidateName({ name: c.candidateName, email: c.candidateEmail }).toLowerCase();
+                  const search = candidatesSearchTerm.toLowerCase();
+                  const matchesSearch = !search || name.includes(search);
+                  
+                  // Filter by decision status
+                  const matchesDecision = decisionFilter === 'all' || c.decision === decisionFilter;
+                  
+                  return matchesSearch && matchesDecision;
+                })
+                .sort((a, b) => (b.score || 0) - (a.score || 0)) // Sort by score (highest first)
+                .map((candidate) => (
+                <div key={candidate.id} className="candidate-card">
+                  <div className="candidate-card-content">
+                    <h4 className="candidate-name">
+                      {candidate.candidateName || candidate.candidateEmail || 'Candidate'}
+                    </h4>
+                    <div className="candidate-scores">
+                      <span className="candidate-score-item">Match Score: {candidate.score}%</span>
+                      <span className="candidate-score-divider">|</span>
+                      <span className="candidate-score-item">Explainable AI Score: {candidate.score}</span>
+                    </div>
+                  </div>
+                  
+                  {/* Action buttons */}
+                  <div className="candidate-actions">
+                    <button 
+                      className="view-profile-btn"
+                      onClick={() => handleViewResume(candidate.file_url)}
+                    >
+                      View Resume
+                    </button>
+                    <button 
+                      className="explain-ranking-btn"
+                      onClick={() => handleExplainRanking(candidate.resume_id)}
+                      title="See why this candidate got this score"
+                    >
+                      🔍 Explain Ranking
+                    </button>
+                    <select
+                      className={`candidate-decision-select-compact decision-${candidate.decision || 'pending'}`}
+                      value={candidate.decision || 'pending'}
+                      onChange={(e) => handleDecision(candidate.resume_id, e.target.value)}
+                    >
+                      <option value="pending">Pending</option>
+                      <option value="selected">Selected</option>
+                      <option value="rejected">Rejected</option>
+                    </select>
                   </div>
                 </div>
-                
-                {/* Action buttons */}
-                <div className="candidate-actions">
-                  <button 
-                    className="view-profile-btn"
-                    onClick={() => handleViewResume(candidate.file_url)}
-                  >
-                    View Resume
-                  </button>
-                  <button 
-                    className="explain-ranking-btn"
-                    onClick={() => handleExplainRanking(candidate.resume_id)}
-                    title="See why this candidate got this score"
-                  >
-                    🔍 Explain Ranking
-                  </button>
-                  <select
-                    className={`candidate-decision-select-compact decision-${candidate.decision || 'pending'}`}
-                    value={candidate.decision || 'pending'}
-                    onChange={(e) => handleDecision(candidate.resume_id, e.target.value)}
-                  >
-                    <option value="pending">Pending</option>
-                    <option value="selected">Selected</option>
-                    <option value="rejected">Rejected</option>
-                  </select>
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
 
           {/* Simple Statistics */}
           {candidates.length > 0 && (
