@@ -11,10 +11,10 @@
 # https://rasa.com/docs/rasa/custom-actions
 
 action_endpoint:
-  # For local development point to the local actions server (default path)
-  # Rasa action server exposes the endpoint at /webhook by default.
-  # When running locally use: rasa run actions --port 5055
-  url: "http://127.0.0.1:5055/webhook"
+  # Use environment variable `ACTION_ENDPOINT_URL` to allow flexible deployments.
+  # Example (Render): set ACTION_ENDPOINT_URL to "https://your-actions-service.onrender.com/webhook"
+  # Local dev fallback: http://127.0.0.1:5055/webhook
+  url: "${ACTION_ENDPOINT_URL:-http://127.0.0.1:5055/webhook}"
 
 # Tracker store which is used to store the conversations.
 # By default the conversations are stored in memory.
