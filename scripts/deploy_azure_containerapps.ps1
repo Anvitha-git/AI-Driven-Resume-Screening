@@ -60,20 +60,38 @@ az containerapp create `
 Write-Host "Container App created. Setting environment variables..."
 
 # 6. Configure required environment variables
-# Replace the placeholder values below with real values before running the script
+# Read sensitive values from the process environment to avoid storing secrets in git.
+# Export these in PowerShell before running the script, e.g.:
+#   $env:SUPABASE_URL = 'https://...'
+#   $env:SUPABASE_KEY = '...'
+#   $env:EMAIL_HOST_PASSWORD = '...'
+
+# Ensure required env vars are present
+$required = @(
+  'SUPABASE_URL', 'SUPABASE_KEY', 'SUPABASE_SERVICE_ROLE_KEY', 'SUPABASE_ANON_KEY',
+  'EMAIL_HOST_USER', 'EMAIL_HOST_PASSWORD'
+)
+$missing = $required | Where-Object { -not (Get-ChildItem env:$_) }
+if ($missing.Count -gt 0) {
+  Write-Error "Missing required environment variables: $($missing -join ', ')"
+  Write-Error "Export them in PowerShell before running this script, e.g.:`n$env:SUPABASE_URL='https://...'"
+  exit 1
+}
+
+# Build env map from process environment (use defaults for non-sensitive values)
 $envVars = @{
-  SUPABASE_URL = "https://exbmjznbphjujgngtnrz.supabase.co"
-  SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV4Ym1qem5icGhqdWpnbmd0bnJ6Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1ODAyOTMwMCwiZXhwIjoyMDczNjA1MzAwfQ.jxObxiiMAmAGph2BG0sczni2cdRiz_buAPee0zIywl8"
-  SUPABASE_SERVICE_ROLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV4Ym1qem5icGhqdWpnbmd0bnJ6Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1ODAyOTMwMCwiZXhwIjoyMDczNjA1MzAwfQ.jxObxiiMAmAGph2BG0sczni2cdRiz_buAPee0zIywl8"
-  SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV4Ym1qem5icGhqdWpnbmd0bnJ6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgwMjkzMDAsImV4cCI6MjA3MzYwNTMwMH0.AlH9vDHVOLdJuvo78ogkjTdHbZWUusJHhYAvdr_5chE"
-  CORS_ORIGINS = "https://ai-driven-resume-screening.vercel.app,http://localhost:3000"
-  RASA_URL = "http://127.0.0.1:5005"
-  EMAIL_HOST = "smtp.gmail.com"
-  EMAIL_PORT = "587"
-  EMAIL_USE_TLS = "True"
-  EMAIL_HOST_USER = "airesumescreening@gmail.com"
-  EMAIL_HOST_PASSWORD = "flwonmlqvwtodbnv"
-  EMAIL_FROM_NAME = "HR Team - AI Resume Screening System"
+  SUPABASE_URL = $env:SUPABASE_URL
+  SUPABASE_KEY = $env:SUPABASE_KEY
+  SUPABASE_SERVICE_ROLE_KEY = $env:SUPABASE_SERVICE_ROLE_KEY
+  SUPABASE_ANON_KEY = $env:SUPABASE_ANON_KEY
+  CORS_ORIGINS = if ($env:CORS_ORIGINS) { $env:CORS_ORIGINS } else { "https://ai-driven-resume-screening.vercel.app,http://localhost:3000" }
+  RASA_URL = if ($env:RASA_URL) { $env:RASA_URL } else { "http://127.0.0.1:5005" }
+  EMAIL_HOST = if ($env:EMAIL_HOST) { $env:EMAIL_HOST } else { "smtp.gmail.com" }
+  EMAIL_PORT = if ($env:EMAIL_PORT) { $env:EMAIL_PORT } else { "587" }
+  EMAIL_USE_TLS = if ($env:EMAIL_USE_TLS) { $env:EMAIL_USE_TLS } else { "True" }
+  EMAIL_HOST_USER = $env:EMAIL_HOST_USER
+  EMAIL_HOST_PASSWORD = $env:EMAIL_HOST_PASSWORD
+  EMAIL_FROM_NAME = if ($env:EMAIL_FROM_NAME) { $env:EMAIL_FROM_NAME } else { "HR Team - AI Resume Screening System" }
 }
 
 # Convert hashtable into az formatted args
