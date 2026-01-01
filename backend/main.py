@@ -48,14 +48,31 @@ except Exception as e:
     logging.warning(f"Could not create Supabase clients during import: {e}")
 
 # Enable CORS
-# Allow frontend from localhost (dev) and Netlify (production)
+# Configure allowed origins from environment variable `CORS_ORIGINS` (comma-separated).
+# If not provided, default to a conservative set of local dev URLs plus the known
+# deployed frontend/chatbot origins. To allow all origins, set `CORS_ORIGINS="*"`.
+cors_env = os.getenv("CORS_ORIGINS")
+if cors_env:
+    if cors_env.strip() == "*":
+        allowed_origins = ["*"]
+    else:
+        allowed_origins = [o.strip() for o in cors_env.split(",") if o.strip()]
+else:
+    # Defaults include localhost for development and the deployed URLs you provided.
+    allowed_origins = [
+        "http://localhost:3000",
+        "http://localhost:8000",
+        "https://ai-driven-resume-screening.vercel.app",
+        "https://ai-driven-resume-screening-backend.onrender.com",
+        "https://ai-driven-resume-screening-chatbot-1hmx.onrender.com",
+        "https://ai-driven-resume-screening-chatbot-qiyj.onrender.com",
+    ]
+
+logging.info(f"CORS allowed origins: {allowed_origins}")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        # Allow all origins temporarily to avoid CORS issues from hosted frontend.
-        # For security, replace with explicit origins (your Vercel domain) in production.
-        "*"
-    ],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
