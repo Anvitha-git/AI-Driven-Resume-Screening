@@ -8,10 +8,17 @@ import re
 import json
 from datetime import datetime
 
-SUPABASE_URL = "https://exbmjznbphjujgngtnrz.supabase.co"
-SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV4Ym1qem5icGhqdWpnbmd0bnJ6Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1ODAyOTMwMCwiZXhwIjoyMDczNjA1MzAwfQ.jxObxiiMAmAGph2BG0sczni2cdRiz_buAPee0zIywl8"
-BACKEND_URL = "http://localhost:8000"  # Backend API endpoint
-headers = {"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}"}
+import os
+
+# Read sensitive config from environment; fall back to safe defaults for local dev.
+SUPABASE_URL = os.getenv('SUPABASE_URL', 'https://exbmjznbphjujgngtnrz.supabase.co')
+SUPABASE_KEY = os.getenv('SUPABASE_KEY')
+BACKEND_URL = os.getenv('BACKEND_URL', 'http://localhost:8000')  # Backend API endpoint
+
+if not SUPABASE_KEY:
+    print('[WARNING] SUPABASE_KEY not set in environment; chat logging will be disabled.')
+
+headers = {"apikey": SUPABASE_KEY or '', "Authorization": f"Bearer {SUPABASE_KEY}" if SUPABASE_KEY else ''}
 
 
 def save_chat_log(user_id: str, jd_id: str, user_message: str, bot_response: str):
