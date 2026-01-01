@@ -286,8 +286,10 @@ def rank_resumes(resumes, jd_requirements, weights=None):
     jd_embedding = None
     try:
         from sentence_transformers import SentenceTransformer, util
-        # Use all-mpnet-base-v2 for best balance of accuracy and speed
-        model = SentenceTransformer('all-mpnet-base-v2')
+        # Model name can be overridden via the EMBEDDING_MODEL env var.
+        # Use a smaller default model to reduce memory and deployment issues.
+        model_name = os.getenv('EMBEDDING_MODEL', 'all-MiniLM-L6-v2')
+        model = SentenceTransformer(model_name)
         jd_text = " ".join(jd_requirements) if jd_requirements else "default job requirements"
         jd_embedding = model.encode(jd_text, convert_to_tensor=True)
     except Exception as e:
@@ -469,7 +471,8 @@ def explain_ranking_with_lime(resume_text, jd_requirements, resume_data, num_fea
     jd_text = " ".join(jd_requirements) if jd_requirements else "default job requirements"
     # Lazily import heavy ML libraries
     from sentence_transformers import SentenceTransformer, util
-    model = SentenceTransformer('all-mpnet-base-v2')
+    model_name = os.getenv('EMBEDDING_MODEL', 'all-MiniLM-L6-v2')
+    model = SentenceTransformer(model_name)
     jd_embedding = model.encode(jd_text, convert_to_tensor=True)
     resume_embedding = model.encode(resume_text, convert_to_tensor=True)
     
