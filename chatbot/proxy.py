@@ -43,9 +43,17 @@ class ProxyHandler(BaseHTTPRequestHandler):
                 continue
             self.send_header(k, v)
         self.end_headers()
-        chunk = resp.read()
-        if chunk:
-            self.wfile.write(chunk)
+        try:
+            chunk = resp.read()
+            if chunk:
+                try:
+                    self.wfile.write(chunk)
+                except BrokenPipeError:
+                    # Client closed connection before we could write; ignore and return
+                    return
+        except ConnectionResetError:
+            # Upstream connection reset while reading; treat as upstream unavailable
+            return
 
     def do_GET(self):
         resp = self._proxy_request()
@@ -54,7 +62,11 @@ class ProxyHandler(BaseHTTPRequestHandler):
             self.send_response(503)
             self.send_header('Content-Type', 'text/plain')
             self.end_headers()
-            self.wfile.write(b'Rasa upstream not ready')
+            try:
+                self.wfile.write(b'Rasa upstream not ready')
+            except BrokenPipeError:
+                # Client disconnected before we could write; ignore
+                pass
             return
         self._send_upstream_response(resp)
 

@@ -281,13 +281,19 @@ def rank_resumes(resumes, jd_requirements, weights=None):
         List of tuples: (score, detailed_breakdown) for each resume
     """
     # Lazily import heavy ML libraries to avoid high memory at import time
-    from sentence_transformers import SentenceTransformer, util
-
-    # Use all-mpnet-base-v2 for best balance of accuracy and speed
-    # This model outperforms MiniLM with only 2x slower inference (still fast on CPU)
-    model = SentenceTransformer('all-mpnet-base-v2')
-    jd_text = " ".join(jd_requirements) if jd_requirements else "default job requirements"
-    jd_embedding = model.encode(jd_text, convert_to_tensor=True)
+    # Wrap model load in try/except and fall back to a lightweight heuristic
+    model = None
+    jd_embedding = None
+    try:
+        from sentence_transformers import SentenceTransformer, util
+        # Use all-mpnet-base-v2 for best balance of accuracy and speed
+        model = SentenceTransformer('all-mpnet-base-v2')
+        jd_text = " ".join(jd_requirements) if jd_requirements else "default job requirements"
+        jd_embedding = model.encode(jd_text, convert_to_tensor=True)
+    except Exception as e:
+        # Could be missing package, model download failure, or memory limits in the environment.
+        # Log warning and fall back to a simpler heuristic that doesn't require the transformer.
+        print(f"Warning: SentenceTransformer unavailable or failed to load: {e}. Using fallback scoring.")
     
     # Default weights if not provided - skills matter most
     if not weights:
@@ -314,9 +320,22 @@ def rank_resumes(resumes, jd_requirements, weights=None):
             continue
         
         # Component 1: Semantic Similarity Score (0-1)
-        resume_embedding = model.encode(resume_text, convert_to_tensor=True)
-        semantic_score = float(util.cos_sim(jd_embedding, resume_embedding)[0][0])
-        semantic_score = max(0.0, min(1.0, semantic_score))  # Clamp to [0, 1]
+        if model is not None and jd_embedding is not None:
+            try:
+                resume_embedding = model.encode(resume_text, convert_to_tensor=True)
+                semantic_score = float(util.cos_sim(jd_embedding, resume_embedding)[0][0])
+                semantic_score = max(0.0, min(1.0, semantic_score))  # Clamp to [0, 1]
+            except Exception:
+                # If semantic computation fails for a particular resume, fall back to 0
+                semantic_score = 0.0
+        else:
+            # Fallback: estimate semantic score from presence of required keywords
+            resume_text_lower = resume_text.lower()
+            if required_skills:
+                keyword_hits = sum(1 for kw in required_skills if kw in resume_text_lower)
+                semantic_score = min(1.0, keyword_hits / max(1, len(required_skills)))
+            else:
+                semantic_score = 0.0
         
         # Component 2: Skill Match Score (0-1) with fuzzy matching
         resume_skills_list = resume.get("skills", [])
