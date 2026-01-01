@@ -846,9 +846,18 @@ async def rank_resumes_endpoint(jd_id: str, user=Depends(get_current_user)):
         
         # Get weights from JD or use defaults
         weights = jd.get("weights") or {}
-        
-        # Rank resumes with weights
-        scores = rank_resumes(resumes, jd["requirements"], weights)
+
+        # Add debug logging about the ranking operation
+        logging.info(f"Ranking resumes: jd_id={jd_id}, num_resumes={len(resumes)}, jd_requirements={jd.get('requirements')}, weights={weights}")
+
+        # Rank resumes with weights (wrap in try/except to capture ML errors)
+        try:
+            scores = rank_resumes(resumes, jd.get("requirements", []), weights)
+        except Exception as rank_err:
+            # Log full exception with traceback for diagnostics
+            logging.exception(f"rank_resumes failed for jd_id={jd_id}: {rank_err}")
+            # Surface a helpful error message to the caller (frontend will show this)
+            raise HTTPException(status_code=500, detail=f"Ranking engine error: {str(rank_err)}")
         
         # Update resumes with scores and explanations
         for resume, score in zip(resumes, scores):
