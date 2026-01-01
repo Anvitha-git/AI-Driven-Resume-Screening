@@ -20,11 +20,17 @@ PORT=${PORT:-5005}
 : ${RASA_TELEMETRY_ENABLED:=false}
 
 # If MODEL_URL is provided, download and extract it to /app/models
-if [ -n "$MODEL_URL" ]; then
-  echo "MODEL_URL provided, downloading model..."
+MODEL_PRESENT=0
+if [ -d /app/models ] && [ "$(ls -A /app/models 2>/dev/null)" ]; then
+  echo "Model files already present in /app/models; skipping download."
+  MODEL_PRESENT=1
+fi
+
+if [ $MODEL_PRESENT -eq 0 ] && [ -n "$MODEL_URL" ]; then
+  echo "MODEL_URL provided and no model present, downloading model..."
   tmpfile="/tmp/model.tar.gz"
   echo "Downloading $MODEL_URL to $tmpfile"
-  curl -sSL "$MODEL_URL" -o "$tmpfile"
+  curl -sSL "$MODEL_URL" -o "$tmpfile" || echo "curl failed to download model"
 
   echo "Downloaded model file size: $(stat -c%s "$tmpfile" 2>/dev/null || ls -l "$tmpfile")"
 
@@ -36,10 +42,6 @@ if [ -n "$MODEL_URL" ]; then
     echo "Downloaded file is not a valid tar.gz archive"
   fi
 
-  # Prefer passing the raw tarball to Rasa rather than extracting into /app
-  # because /app may not be writable by the container user. Move the tarball
-  # into /app/models if possible, otherwise keep it in /tmp and point Rasa
-  # at that file directly.
   model_arg="models"
   if mkdir -p /app/models 2>/dev/null && [ -w /app/models ]; then
     echo "Moving tarball into /app/models"
@@ -51,7 +53,7 @@ if [ -n "$MODEL_URL" ]; then
   fi
   echo "Model placed at: $model_arg"
 else
-  echo "No MODEL_URL provided. Using any model present in /app/models or /app/models/*.tar.gz"
+  echo "No MODEL_URL provided or model already present. Using any model present in /app/models or /app/models/*.tar.gz"
 fi
 
   echo "Model directory listing (for debugging):"

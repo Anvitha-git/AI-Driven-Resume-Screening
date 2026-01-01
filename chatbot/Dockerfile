@@ -28,6 +28,18 @@ ENV PYTHONUNBUFFERED=1
 # Copy chatbot project files
 COPY . /app
 
+# Allow providing a MODEL_URL as a build-arg so the image can preload the Rasa model
+# during image build (recommended for faster startup on low-memory hosts).
+ARG MODEL_URL
+RUN if [ -n "$MODEL_URL" ]; then \
+			echo "Downloading Rasa model during build from $MODEL_URL"; \
+			mkdir -p /app/models; \
+			curl -sSL "$MODEL_URL" -o /tmp/model.tar.gz && \
+			mv /tmp/model.tar.gz /app/models/ || echo "Failed to download model during build"; \
+		else \
+			echo "No MODEL_URL build-arg provided; skipping model preload at build time"; \
+		fi
+
 # Expose Rasa port
 EXPOSE 5005
 
