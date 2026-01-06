@@ -58,14 +58,12 @@ if cors_env:
     else:
         allowed_origins = [o.strip() for o in cors_env.split(",") if o.strip()]
 else:
-    # Defaults include localhost for development and the deployed URLs you provided.
+    # Localhost-only development
     allowed_origins = [
         "http://localhost:3000",
         "http://localhost:8000",
-        "https://ai-driven-resume-screening.vercel.app",
-        "https://ai-driven-resume-screening-backend.onrender.com",
-        "https://ai-driven-resume-screening-chatbot-1hmx.onrender.com",
-        "https://ai-driven-resume-screening-chatbot-qiyj.onrender.com",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:8000",
     ]
 
 logging.info(f"CORS allowed origins: {allowed_origins}")
@@ -908,26 +906,34 @@ async def get_resumes(jd_id: str, user=Depends(get_current_user)):
                 profiles = supabase_service.table("user_profiles").select("user_id, email, name").in_("user_id", user_ids).execute()
                 logging.info(f"[RESUMES] Profiles query returned: {profiles.data}")
                 for p in (profiles.data or []):
-                    emails_map[p["user_id"]] = p["email"]
-                    names_map[p["user_id"]] = p.get("name")
-                logging.info(f"[RESUMES] Names map: {names_map}")
+                    email = p.get("email")
+                    name = p.get("name")
+                    emails_map[p["user_id"]] = email
+                    names_map[p["user_id"]] = name
+                    logging.info(f"[RESUMES] User {p['user_id']}: name={name}, email={email}")
             except Exception as e:
-                logging.warning(f"get_resumes: could not fetch user emails/names: {e}")
+                logging.warning(f"get_resumes: could not fetch user profiles: {e}")
+        
         # Add rank and friendly identity fields
         for idx, resume in enumerate(resumes):
             resume['rank'] = idx + 1
             user_id = resume.get('user_id')
             name = names_map.get(user_id)
             email = emails_map.get(user_id)
-            logging.info(f"[RESUMES] Resume {idx}: user_id={user_id}, name={name}, email={email}")
-            # Use name if available, fallback to email username, then email, then user_id
-            if name:
-                resume['user_name'] = name
-            elif email:
-                resume['user_name'] = email.split('@')[0] if '@' in email else email
-            else:
-                resume['user_name'] = user_id or 'Unknown'
-            resume.setdefault('user_email', email)
+            
+            # Build display name: prefer name, then email, then user_id
+            display_name = user_id or 'Unknown'
+            if name and name.strip():
+                display_name = name
+            elif email and email.strip():
+                # Extract username from email and capitalize first letter
+                username = email.split('@')[0] if '@' in email else email
+                display_name = username.capitalize() if username else user_id
+            
+            logging.info(f"[RESUMES] Resume {idx}: user_id={user_id}, name={name}, email={email}, display_name={display_name}")
+            
+            resume['user_name'] = display_name
+            resume['user_email'] = email or ''
         return resumes
     except Exception as e:
         logging.exception("Error fetching resumes")
@@ -1563,6 +1569,10 @@ async def get_resume_url(resume_path: str, user=Depends(get_current_user)):
     except Exception as e:
         logging.exception(f"Error generating signed URL for {resume_path}")
         raise HTTPException(status_code=500, detail=f"Failed to generate resume URL: {str(e)}")
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
 
 
 

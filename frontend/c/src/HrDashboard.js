@@ -100,17 +100,35 @@ function HrDashboard() {
         return Array.isArray(res.data) ? res.data : [];
       });
       
-      const mapped = list.map(r => ({
-        id: r.resume_id,
-        rank: r.rank,
-        candidateName: r.user_name || r.user_email || r.user_id,
-        candidateEmail: r.user_email,
-        score: typeof r.score === 'number' ? (r.score * 100).toFixed(1) : r.score,
-        explanation: r.explanation,
-        file_url: r.file_url,
-        resume_id: r.resume_id,
-        decision: r.decision || 'pending',
-      }));
+      const mapped = list.map(r => {
+        // Format candidate name from available data
+        let displayName = 'Unknown';
+        
+        // Priority: user_name > user_email (formatted) > user_id
+        if (r.user_name && r.user_name.trim() && !r.user_name.match(/^[0-9a-f]{8}-[0-9a-f]{4}/i)) {
+          // user_name exists and is not a UUID
+          displayName = r.user_name;
+        } else if (r.user_email && r.user_email.trim()) {
+          // Extract username from email and capitalize
+          const username = r.user_email.split('@')[0];
+          displayName = username.charAt(0).toUpperCase() + username.slice(1);
+        } else if (r.user_id && !r.user_id.match(/^[0-9a-f]{8}-[0-9a-f]{4}/i)) {
+          // user_id is not a UUID
+          displayName = r.user_id;
+        }
+        
+        return {
+          id: r.resume_id,
+          rank: r.rank,
+          candidateName: displayName,
+          candidateEmail: r.user_email,
+          score: typeof r.score === 'number' ? (r.score * 100).toFixed(1) : r.score,
+          explanation: r.explanation,
+          file_url: r.file_url,
+          resume_id: r.resume_id,
+          decision: r.decision || 'pending',
+        };
+      });
       console.log('Mapped candidates:', mapped);
       setCandidates(mapped);
       setCurrentJobId(jdId); // Track the job ID for later submission

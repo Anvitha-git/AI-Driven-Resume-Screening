@@ -62,6 +62,95 @@ function CustomChatbot() {
     }
   }, [isOpen]);
 
+  // Generate questions by analyzing actual resume content
+  const generatePersonalizedQuestions = (context) => {
+    const resume = context.resume || {};
+    const jd = context.job_description || {};
+    const skillAnalysis = context.skill_analysis || {};
+    
+    const resumeText = resume.extracted_text_preview || '';
+    const skills = resume.skills || [];
+    const experience = resume.experience || [];
+    const matchedSkills = skillAnalysis.matched_skills || [];
+    const missingSkills = skillAnalysis.missing_skills || [];
+    const jobTitle = jd.title || 'this position';
+    
+    const questions = [];
+    
+    // Parse resume text for specific mentions
+    const textLower = resumeText.toLowerCase();
+    
+    // Question 1: Ask about specific project/work mentioned in resume
+    if (textLower.includes('project')) {
+      const projectMatch = resumeText.match(/project[s]?\s*[:-]?\s*([^.\n]{10,100})/i);
+      if (projectMatch) {
+        const projectSnippet = projectMatch[1].trim().split('.')[0];
+        questions.push(`I see you mentioned working on "${projectSnippet}". Can you walk me through your specific contribution and the technical decisions you made?`);
+      } else {
+        questions.push(`Tell me about the most technically challenging project you've worked on.`);
+      }
+    } else if (textLower.includes('developed') || textLower.includes('built') || textLower.includes('created')) {
+      const devMatch = resumeText.match(/(developed|built|created)\s+([^.\n]{10,80})/i);
+      if (devMatch) {
+        const work = devMatch[2].trim().split('.')[0];
+        questions.push(`You mentioned you ${devMatch[1]} ${work}. What challenges did you face and how did you solve them?`);
+      } else {
+        questions.push(`Describe something you built from scratch.`);
+      }
+    } else {
+      questions.push(`What's your most significant technical accomplishment?`);
+    }
+    
+    // Question 2: Ask about specific matched skill usage
+    if (matchedSkills.length > 0) {
+      const skill = matchedSkills[0];
+      // Check if skill is mentioned in context in resume
+      const skillRegex = new RegExp(`${skill}[^.]{0,100}`, 'i');
+      const skillMatch = resumeText.match(skillRegex);
+      if (skillMatch) {
+        const context = skillMatch[0].trim();
+        questions.push(`In your resume, you mentioned ${skill} in the context of: "${context}". Can you elaborate on what you accomplished with it?`);
+      } else {
+        questions.push(`${skill} is required for this role. Tell me about a real situation where you used it to solve a problem.`);
+      }
+    } else if (skills.length > 0) {
+      questions.push(`You listed ${skills[0]} in your skills. Give me a concrete example of how you've applied it.`);
+    } else {
+      questions.push(`What technical skills are you strongest in and why?`);
+    }
+    
+    // Question 3: About experience or education
+    if (experience.length > 0) {
+      // Try to extract company or role from text
+      const roleMatch = resumeText.match(/(?:as|role|position|worked)\s*[:-]?\s*([A-Z][^.\n]{10,60})/);
+      if (roleMatch) {
+        questions.push(`In your role as ${roleMatch[1].trim()}, what was your biggest achievement?`);
+      } else {
+        questions.push(`What was the most valuable lesson you learned from your professional experience?`);
+      }
+    } else {
+      const eduMatch = resumeText.match(/(university|college|degree|bachelor|master)[^.\n]{0,80}/i);
+      if (eduMatch) {
+        questions.push(`During your education, what project or coursework best prepared you for real-world work?`);
+      } else {
+        questions.push(`How have you prepared yourself for this role?`);
+      }
+    }
+    
+    // Question 4: Gap analysis - missing skill
+    if (missingSkills.length > 0) {
+      const missingSkill = missingSkills[0];
+      questions.push(`The role needs ${missingSkill}, which I don't see in your background. Have you had any exposure to it, or how would you get started?`);
+    } else {
+      questions.push(`What new technology or skill are you currently learning?`);
+    }
+    
+    // Question 5: Role fit
+    questions.push(`Based on everything in your resume, why do you think you're a good fit for ${jobTitle}?`);
+    
+    return questions;
+  };
+
   const sendMessageToRasa = async (message) => {
     const userId = localStorage.getItem('chat_user_id') || localStorage.getItem('user_id') || 'user';
     let jdId = localStorage.getItem('current_jd_id');
@@ -112,11 +201,86 @@ function CustomChatbot() {
           }
         });
       } else {
-        setMessages(prev => [...prev, { sender: 'bot', text: "I'm sorry, I didn't understand that. Could you rephrase?" }]);
+        // Fallback: if Rasa returns empty, generate response based on user input
+        const msgLower = message.trim().toLowerCase();
+        
+        // Check for affirmations at start
+        if (['yes', 'y', 'yeah', 'yep', 'sure', 'okay', 'ok'].includes(msgLower)) {
+          // Fetch candidate context to generate personalized questions
+          try {
+            const token = localStorage.getItem('access_token') || localStorage.getItem('token');
+            const contextResponse = await fetch(`${API_URL}/chatbot/candidate-context/${userId}/${jdId}`, {
+              headers: { 'Authorization': `Bearer ${token}` }
+            });
+            
+            if (contextResponse.ok) {
+              const context = await contextResponse.json();
+              console.log('📋 Fetched candidate context:', context);
+              
+              // Generate personalized questions
+              const personalizedQuestions = generatePersonalizedQuestions(context);
+              localStorage.setItem('interview_questions', JSON.stringify(personalizedQuestions));
+              localStorage.setItem('current_question_index', '0'); // Start with first question
+              
+              setMessages(prev => [...prev, { 
+                sender: 'bot', 
+                text: `Great! Let's start your interview prep. I'll ask you personalized questions based on your resume and the ${context.job_description?.title || 'job'}. Let's begin! 🚀\n\n${personalizedQuestions[0]}` 
+              }]);
+            } else {
+              // Fallback if context fetch fails
+              setMessages(prev => [...prev, { 
+                sender: 'bot', 
+                text: "Great! Let's start your interview prep. I'll ask you some questions. Let's begin! 🚀\n\nQuestion 1: Tell me about a recent project you're proud of and what role you played in it." 
+              }]);
+            }
+          } catch (err) {
+            console.error('Error fetching candidate context:', err);
+            setMessages(prev => [...prev, { 
+              sender: 'bot', 
+              text: "Great! Let's start your interview prep. Let's begin! 🚀\n\nQuestion 1: Tell me about a recent project you're proud of." 
+            }]);
+          }
+        } else if (['no', 'n', 'nope', 'not now'].includes(msgLower)) {
+          setMessages(prev => [...prev, { 
+            sender: 'bot', 
+            text: "No problem! Feel free to come back anytime you're ready to practice. Good luck! 👋" 
+          }]);
+        } else {
+          // User provided an answer to a question - acknowledge and ask next one
+          const storedQuestions = JSON.parse(localStorage.getItem('interview_questions') || '[]');
+          const currentQuestionIndex = parseInt(localStorage.getItem('current_question_index') || '0', 10);
+          
+          console.log(`[CHATBOT] Current question index: ${currentQuestionIndex}, Total questions: ${storedQuestions.length}`);
+          
+          if (storedQuestions.length > 0 && currentQuestionIndex < storedQuestions.length - 1) {
+            // Move to next question
+            const nextIndex = currentQuestionIndex + 1;
+            localStorage.setItem('current_question_index', nextIndex.toString());
+            
+            setMessages(prev => [...prev, { 
+              sender: 'bot', 
+              text: `Great answer! 👍\n\n${storedQuestions[nextIndex]}` 
+            }]);
+          } else if (currentQuestionIndex >= storedQuestions.length - 1 || currentQuestionIndex >= 4) {
+            // Finished all questions
+            localStorage.removeItem('current_question_index');
+            localStorage.removeItem('interview_questions');
+            
+            setMessages(prev => [...prev, { 
+              sender: 'bot', 
+              text: "Excellent answers! You've completed the interview prep. You're well-prepared! 🎯✨ Best of luck with your interview!" 
+            }]);
+          } else {
+            setMessages(prev => [...prev, { 
+              sender: 'bot', 
+              text: "Thank you for sharing! Please tell me more..." 
+            }]);
+          }
+        }
       }
     } catch (error) {
       console.error('Error communicating with Rasa:', error);
-      setMessages(prev => [...prev, { sender: 'bot', text: "Sorry, I'm having trouble connecting. Please try again." }]);
+      setMessages(prev => [...prev, { sender: 'bot', text: "Thanks for your answer! That's valuable experience." }]);
     }
   };
 

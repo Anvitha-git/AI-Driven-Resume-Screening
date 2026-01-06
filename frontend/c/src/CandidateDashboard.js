@@ -300,13 +300,20 @@ function CandidateDashboard() {
           const res = await axios.get(`${API_URL}/jobs/${jdId}`, { headers: { Authorization: `Bearer ${token}` } });
           const job = res.data;
           if (job && job.status === 'closed') {
-            // Clear the cached jd and notify the user
-            localStorage.removeItem('current_jd_id');
-            setAlertMessage('The job you applied to has been closed by HR. The chatbot is now hidden.');
-            setAlertType('success');
-            setShowAlertModal(true);
-            // Refresh lists to reflect latest state
-            handleRefreshJobs();
+            // Only show alert if user actually has applications for this job
+            const userId = localStorage.getItem('user_id');
+            if (userId && applications.some(app => app.jd_id === jdId)) {
+              // Clear the cached jd and notify the user
+              localStorage.removeItem('current_jd_id');
+              setAlertMessage('The job you applied to has been closed by HR. The chatbot is now hidden.');
+              setAlertType('success');
+              setShowAlertModal(true);
+              // Refresh lists to reflect latest state
+              handleRefreshJobs();
+            } else {
+              // No actual application, just clear the localStorage
+              localStorage.removeItem('current_jd_id');
+            }
             if (intervalId) {
               clearInterval(intervalId);
             }
@@ -323,7 +330,7 @@ function CandidateDashboard() {
     intervalId = setInterval(() => { if (!stopped) checkJob(); }, 10000);
 
     return () => { stopped = true; if (intervalId) clearInterval(intervalId); };
-  }, [withAuth]);
+  }, [withAuth, handleRefreshJobs, applications]);
 
   // Helper to check if already applied to a job
   const hasAlreadyApplied = (jd_id) => {
