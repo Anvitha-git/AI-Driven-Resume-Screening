@@ -104,19 +104,26 @@ function HrDashboard() {
         // Format candidate name from available data
         let displayName = '';
         
+        console.log('Processing resume:', { user_email: r.user_email, user_name: r.user_name, user_id: r.user_id });
+        
         // Priority: user_email (formatted) > user_name (if not UUID) > user_id
-        if (r.user_email && r.user_email.trim()) {
+        if (r.user_email && r.user_email.trim() && r.user_email !== '') {
           // Extract username from email and capitalize
           const username = r.user_email.split('@')[0];
           displayName = username.charAt(0).toUpperCase() + username.slice(1);
-        } else if (r.user_name && r.user_name.trim() && !r.user_name.match(/^[0-9a-f]{8}-[0-9a-f]{4}/i)) {
+          console.log('Using email-derived name:', displayName);
+        } else if (r.user_name && r.user_name.trim() && r.user_name !== '' && !r.user_name.match(/^[0-9a-f]{8}-[0-9a-f]{4}/i)) {
           // user_name exists and is not a UUID
           displayName = r.user_name;
+          console.log('Using user_name:', displayName);
         } else if (r.user_id && !r.user_id.match(/^[0-9a-f]{8}-[0-9a-f]{4}/i)) {
           // user_id is not a UUID
           displayName = r.user_id;
+          console.log('Using user_id:', displayName);
         } else {
-          displayName = 'Candidate';
+          // Last resort - try to extract from user_id even if it's a UUID
+          displayName = r.user_id ? `User-${r.user_id.substring(0, 8)}` : 'Candidate';
+          console.log('Using fallback:', displayName);
         }
         
         return {

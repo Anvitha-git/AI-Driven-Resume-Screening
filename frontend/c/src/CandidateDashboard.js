@@ -341,14 +341,15 @@ function CandidateDashboard() {
   // Recompute chatbot visibility whenever applications update
   useEffect(() => {
     const hasApps = applications.length > 0;
-    // Visible until HR closes: if job not yet loaded, treat as open
+    const hasResume = !!localStorage.getItem('current_jd_id');
+    // Visible only when a resume was uploaded AND there is an open application.
+    // If the job isn’t loaded yet, treat it as open to avoid flicker right after upload.
     const openApp = applications.some(app => {
       const job = jobs.find(j => j.jd_id === app.jd_id);
       return job ? job.status !== 'closed' : true;
     });
 
-    // Chatbot visible whenever there is an open application (until HR closes)
-    setCanShowChatbot(hasApps && openApp);
+    setCanShowChatbot(hasResume && hasApps && openApp);
 
     if (!hasApps) {
       localStorage.removeItem('current_jd_id');

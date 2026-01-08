@@ -1,0 +1,13 @@
+{
+  "resume_screening": {},
+  "chatbot_nlu": {},
+  "ocr": {
+    "accuracy": "100.0%",
+    "status": "PASSED"
+  },
+  "fuzzy_matching": {
+    "accuracy": "87.5%",
+    "status": "PASSED"
+  },
+  "overall": {}
+}
