@@ -10,6 +10,9 @@ intents:
   - out_of_scope
   - provide_answer
   - ask_question
+  - ask_application_status
+  - ask_interview_schedule
+  - ask_deadline
 
 entities:
   - job_role

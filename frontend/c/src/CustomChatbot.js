@@ -4,6 +4,7 @@ import API_URL from './config';
 
 function CustomChatbot() {
   const userId = localStorage.getItem('user_id');
+  const hasResume = !!localStorage.getItem('current_jd_id');
   const chatStorageKey = `chat_history_${userId}`;
   
   // Load chat history from localStorage
@@ -328,7 +329,7 @@ function CustomChatbot() {
   return (
     <>
       {/* Tooltip notification */}
-      {showTooltip && !isOpen && (
+      {showTooltip && !isOpen && hasResume && (
         <div className="chat-tooltip">
           👋 Hey there! I'm your assistant. Click to chat!
         </div>

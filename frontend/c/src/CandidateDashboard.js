@@ -109,6 +109,9 @@ function CandidateDashboard() {
 
   const CHATBOT_ALWAYS_VISIBLE = false;
 
+  // Derived flag: only show chatbot after at least one resume has been uploaded
+  const [canShowChatbot, setCanShowChatbot] = useState(false);
+
   const [jobs, setJobs] = useState([]);
   const [selectedFiles, setSelectedFiles] = useState({}); // map: jd_id -> File
   const [applications, setApplications] = useState([]);
@@ -199,6 +202,14 @@ function CandidateDashboard() {
       console.log('Applications response:', res.data);
       if (res.data && res.data.length > 0) {
         console.log('First application sample:', res.data[0]);
+        // Keep latest jd_id in localStorage for chatbot context
+        const latest = res.data[0];
+        if (latest?.jd_id) {
+          localStorage.setItem('current_jd_id', latest.jd_id);
+        }
+      } else {
+        // No applications for this user — make sure chatbot stays hidden
+        localStorage.removeItem('current_jd_id');
       }
       setApplications(res.data || []);
     }).catch((err) => {
@@ -300,20 +311,10 @@ function CandidateDashboard() {
           const res = await axios.get(`${API_URL}/jobs/${jdId}`, { headers: { Authorization: `Bearer ${token}` } });
           const job = res.data;
           if (job && job.status === 'closed') {
-            // Only show alert if user actually has applications for this job
-            const userId = localStorage.getItem('user_id');
-            if (userId && applications.some(app => app.jd_id === jdId)) {
-              // Clear the cached jd and notify the user
+              // Clear the cached jd and hide chatbot silently
               localStorage.removeItem('current_jd_id');
-              setAlertMessage('The job you applied to has been closed by HR. The chatbot is now hidden.');
-              setAlertType('success');
-              setShowAlertModal(true);
               // Refresh lists to reflect latest state
               handleRefreshJobs();
-            } else {
-              // No actual application, just clear the localStorage
-              localStorage.removeItem('current_jd_id');
-            }
             if (intervalId) {
               clearInterval(intervalId);
             }
@@ -337,14 +338,23 @@ function CandidateDashboard() {
     return applications.some((app) => app.jd_id === jd_id);
   };
 
-  // Helper: does user have any open application?
-const hasOpenApplication = () => {
-  // Find jobs the user applied to that are not closed
-  return applications.some(app => {
-    const job = jobs.find(j => j.jd_id === app.jd_id);
-    return job && job.status !== 'closed';
-  });
-};
+  // Recompute chatbot visibility whenever applications update
+  useEffect(() => {
+    const hasApps = applications.length > 0;
+    // Visible until HR closes: if job not yet loaded, treat as open
+    const openApp = applications.some(app => {
+      const job = jobs.find(j => j.jd_id === app.jd_id);
+      return job ? job.status !== 'closed' : true;
+    });
+
+    // Chatbot visible whenever there is an open application (until HR closes)
+    setCanShowChatbot(hasApps && openApp);
+
+    if (!hasApps) {
+      localStorage.removeItem('current_jd_id');
+      localStorage.removeItem('chat_user_id');
+    }
+  }, [applications, jobs]);
 
   const handleUpload = async (jd_id) => {
     // Check if already applied
@@ -427,6 +437,12 @@ const hasOpenApplication = () => {
     localStorage.removeItem('role');
     localStorage.removeItem('email');
     localStorage.removeItem('name');
+    localStorage.removeItem('current_jd_id');
+    localStorage.removeItem('chat_user_id');
+    // Clear any cached chat history for this user
+    Object.keys(localStorage)
+      .filter((k) => k.startsWith('chat_history_'))
+      .forEach((k) => localStorage.removeItem(k));
     navigate('/', { replace: true });
   };
 
@@ -1364,8 +1380,8 @@ const hasOpenApplication = () => {
           </div>
         )}
 
-        {/* Chatbot: Show when resume uploaded OR testing flag is enabled */}
-        {(CHATBOT_ALWAYS_VISIBLE || hasOpenApplication() || Boolean(localStorage.getItem('current_jd_id'))) && <CustomChatbot />}
+        {/* Chatbot: Show only after the candidate has uploaded at least one resume */}
+        {(CHATBOT_ALWAYS_VISIBLE || canShowChatbot) && <CustomChatbot />}
 
         {/* Password Change Modal */}
         {showPasswordModal && (

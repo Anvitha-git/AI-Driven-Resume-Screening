@@ -416,30 +416,25 @@ class ActionAnswerGeneralQuestion(Action):
             domain: Dict[Text, Any]) -> List[Dict[Text, Any]]:
         
         user_message = tracker.latest_message.get("text", "").lower()
+        user_intent = tracker.latest_message.get("intent", {}).get("name", "")
         
         # Check if we're in the middle of interview prep
         current_question_index = tracker.get_slot("current_question_index")
         questions = tracker.get_slot("interview_questions") or []
         in_interview_mode = current_question_index is not None and current_question_index >= 0 and current_question_index < len(questions)
         
-        # Check if the message has question markers
-        question_markers = ["?", "what", "when", "where", "why", "how", "tell me", "can you", "do you", "does", "is this", "are there", "will i"]
-        has_question_marker = any(marker in user_message for marker in question_markers)
-        
-        if not has_question_marker and in_interview_mode:
-            # Doesn't look like a question - probably an answer during interview
-            print(f"[DEBUG] No question markers found in: '{user_message}' - skipping general Q&A")
-            return []
+        # Get user and job context
+        metadata = tracker.latest_message.get("metadata", {})
+        user_id = metadata.get("user_id") or tracker.get_slot("user_id") or tracker.sender_id
+        jd_id = tracker.get_slot("jd_id")
         
         # Try to fetch job-specific data for context-aware answers
-        jd_id = tracker.get_slot("jd_id")
         job_title = "this position"
         deadline = None
         
         if jd_id:
             try:
-                import requests
-                response = requests.get(f"http://localhost:8000/jobs/{jd_id}", timeout=3)
+                response = requests.get(f"{BACKEND_URL}/jobs/{jd_id}", timeout=3)
                 if response.status_code == 200:
                     job_data = response.json()
                     job_title = job_data.get("title", "this position")
@@ -448,8 +443,133 @@ class ActionAnswerGeneralQuestion(Action):
             except Exception as e:
                 print(f"[DEBUG] Could not fetch job data: {e}")
         
-        # Common Q&A patterns
-        if any(word in user_message for word in ["deadline", "last date", "apply by", "due date"]):
+        # Handle specific intent: ask_deadline
+        if user_intent == "ask_deadline":
+            if deadline:
+                from datetime import datetime
+                try:
+                    deadline_date = datetime.fromisoformat(deadline.replace('Z', '+00:00'))
+                    formatted_deadline = deadline_date.strftime("%B %d, %Y")
+                    dispatcher.utter_message(text=f"The application deadline for {job_title} is {formatted_deadline}. Make sure to submit your application before then! 📅")
+                except:
+                    dispatcher.utter_message(text=f"The application deadline is {deadline}. You can check the job posting for exact details! 📅")
+            else:
+                dispatcher.utter_message(text="I don't have the deadline information right now. Please check the job posting or contact HR for the application deadline! 📅")
+            
+            if in_interview_mode and current_question_index < len(questions):
+                dispatcher.utter_message(text=f"Let's continue your prep!\n\nQuestion {current_question_index + 1}: {questions[current_question_index]}")
+            return []
+        
+        # Handle specific intent: ask_interview_schedule
+        if user_intent == "ask_interview_schedule":
+            if user_id and jd_id:
+                try:
+                    # Fetch application data to check for interview schedule
+                    check_url = f"{SUPABASE_URL}/rest/v1/applications"
+                    params = {
+                        "user_id": f"eq.{user_id}",
+                        "jd_id": f"eq.{jd_id}",
+                        "select": "status,interview_date,interview_time"
+                    }
+                    response = requests.get(check_url, headers=headers, params=params, timeout=5)
+                    
+                    if response.status_code == 200 and response.json():
+                        app_data = response.json()[0]
+                        interview_date = app_data.get("interview_date")
+                        interview_time = app_data.get("interview_time")
+                        status = app_data.get("status", "").lower()
+                        
+                        if interview_date:
+                            from datetime import datetime
+                            try:
+                                date_obj = datetime.fromisoformat(interview_date.replace('Z', '+00:00'))
+                                formatted_date = date_obj.strftime("%B %d, %Y")
+                                time_info = f" at {interview_time}" if interview_time else ""
+                                dispatcher.utter_message(text=f"Your interview is scheduled for {formatted_date}{time_info}! 📅 Good luck with your preparation! 💪")
+                            except:
+                                time_info = f" at {interview_time}" if interview_time else ""
+                                dispatcher.utter_message(text=f"Your interview is scheduled for {interview_date}{time_info}! 📅")
+                        elif status in ["shortlisted", "selected"]:
+                            dispatcher.utter_message(text="Your application has been shortlisted! The interview will be scheduled soon. HR will contact you with the details. Keep an eye on your email! 📧")
+                        else:
+                            dispatcher.utter_message(text="No interview has been scheduled yet. Once your application is reviewed and shortlisted, HR will reach out with interview details! 📧")
+                    else:
+                        dispatcher.utter_message(text="I couldn't find your application details. Please make sure you've submitted your application for this position!")
+                except Exception as e:
+                    print(f"[ERROR] Failed to fetch interview schedule: {e}")
+                    dispatcher.utter_message(text="I'm having trouble fetching your interview details right now. Please check your email or contact HR directly! 📧")
+            else:
+                dispatcher.utter_message(text="I need to know which position you're asking about. Please make sure you've applied for a position first!")
+            
+            if in_interview_mode and current_question_index < len(questions):
+                dispatcher.utter_message(text=f"Let's continue your prep!\n\nQuestion {current_question_index + 1}: {questions[current_question_index]}")
+            return []
+        
+        # Handle specific intent: ask_application_status
+        if user_intent == "ask_application_status":
+            if user_id and jd_id:
+                try:
+                    # Fetch application status from database
+                    check_url = f"{SUPABASE_URL}/rest/v1/applications"
+                    params = {
+                        "user_id": f"eq.{user_id}",
+                        "jd_id": f"eq.{jd_id}",
+                        "select": "status,score,ai_recommendation"
+                    }
+                    response = requests.get(check_url, headers=headers, params=params, timeout=5)
+                    
+                    if response.status_code == 200 and response.json():
+                        app_data = response.json()[0]
+                        status = app_data.get("status", "pending").lower()
+                        score = app_data.get("score")
+                        recommendation = app_data.get("ai_recommendation", "").lower()
+                        
+                        # Create status-specific messages
+                        if status == "selected" or status == "shortlisted":
+                            msg = f"🎉 Great news! Your application has been {status}! "
+                            if score:
+                                msg += f"Your resume scored {score}/100. "
+                            msg += "The HR team will contact you soon with next steps. Keep an eye on your email! 📧"
+                            dispatcher.utter_message(text=msg)
+                        elif status == "rejected":
+                            msg = "Unfortunately, your application wasn't selected for this position. "
+                            msg += "Don't be discouraged! Keep applying and improving your skills. There are many opportunities out there! 💪"
+                            dispatcher.utter_message(text=msg)
+                        elif status == "pending" or status == "under review":
+                            msg = "Your application is currently under review. "
+                            if score:
+                                msg += f"Your initial resume score is {score}/100. "
+                            msg += "The hiring team will evaluate it soon. Hang tight! ⏳"
+                            dispatcher.utter_message(text=msg)
+                        else:
+                            msg = f"Your application status is: {status}. "
+                            if score:
+                                msg += f"Resume score: {score}/100. "
+                            msg += "You'll be notified of any updates via email!"
+                            dispatcher.utter_message(text=msg)
+                    else:
+                        dispatcher.utter_message(text="I couldn't find your application. Have you submitted your resume for this position yet?")
+                except Exception as e:
+                    print(f"[ERROR] Failed to fetch application status: {e}")
+                    dispatcher.utter_message(text="I'm having trouble checking your application status right now. Please try again later or contact HR! 📧")
+            else:
+                dispatcher.utter_message(text="I need to know which position you're asking about. Please make sure you've applied for a position first!")
+            
+            if in_interview_mode and current_question_index < len(questions):
+                dispatcher.utter_message(text=f"Let's continue your prep!\n\nQuestion {current_question_index + 1}: {questions[current_question_index]}")
+            return []
+        
+        # Check if the message has question markers (for fallback general questions)
+        question_markers = ["?", "what", "when", "where", "why", "how", "tell me", "can you", "do you", "does", "is this", "are there", "will i"]
+        has_question_marker = any(marker in user_message for marker in question_markers)
+        
+        if not has_question_marker and in_interview_mode:
+            # Doesn't look like a question - probably an answer during interview
+            print(f"[DEBUG] No question markers found in: '{user_message}' - skipping general Q&A")
+            return []
+        
+        # Common Q&A patterns (legacy support for non-specific intents)
+        if any(word in user_message for word in ["deadline", "last date", "apply by", "due date"]) and user_intent != "ask_deadline":
             if deadline:
                 from datetime import datetime
                 try:

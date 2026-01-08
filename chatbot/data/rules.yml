@@ -16,6 +16,21 @@ rules:
   - intent: ask_question
   - action: action_answer_general_question
 
+- rule: Answer application status questions
+  steps:
+  - intent: ask_application_status
+  - action: action_answer_general_question
+
+- rule: Answer interview schedule questions
+  steps:
+  - intent: ask_interview_schedule
+  - action: action_answer_general_question
+
+- rule: Answer deadline questions
+  steps:
+  - intent: ask_deadline
+  - action: action_answer_general_question
+
 - rule: Start interview on simple affirmation
   steps:
   - intent: affirm

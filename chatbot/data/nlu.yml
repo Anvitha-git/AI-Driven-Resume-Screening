@@ -131,3 +131,50 @@ nlu:
     - where will I work?
     - who will interview me?
     - can I work remotely?
+
+- intent: ask_application_status
+  examples: |
+    - what is my application status?
+    - what is the status of my application?
+    - has my resume been reviewed?
+    - what is the decision on my resume?
+    - did I get selected?
+    - am I shortlisted?
+    - what happened to my application?
+    - did you review my resume?
+    - what is my resume status?
+    - have you decided on my application?
+    - did I pass the resume screening?
+    - what's the update on my application?
+    - am I moving forward?
+    - did I make it to the next round?
+    - was my resume accepted?
+    - did I get rejected?
+
+- intent: ask_interview_schedule
+  examples: |
+    - when is my interview?
+    - when is my interview scheduled?
+    - what time is the interview?
+    - when will I be interviewed?
+    - when is the interview date?
+    - do I have an interview scheduled?
+    - what is my interview time?
+    - when should I come for the interview?
+    - is my interview confirmed?
+    - can you tell me my interview details?
+    - what date is my interview?
+    - when am I supposed to attend the interview?
+
+- intent: ask_deadline
+  examples: |
+    - when is the deadline?
+    - what is the application deadline?
+    - when is the last date to apply?
+    - when does this close?
+    - how much time do I have?
+    - when is the deadline for this job?
+    - what is the last date for submission?
+    - when do applications close?
+    - what is the due date?
+    - by when should I apply?

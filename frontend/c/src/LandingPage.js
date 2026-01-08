@@ -122,8 +122,8 @@ const LandingPage = () => {
           {/* Stats */}
           <div className="landing-hero-stats">
             <div className="hero-stat">
-              <div className="stat-number">95%</div>
-              <div className="stat-label">Accuracy Rate</div>
+              <div className="stat-number">82%</div>
+              <div className="stat-label">Bias Reduction</div>
             </div>
             <div className="hero-stat">
               <div className="stat-number">10x</div>

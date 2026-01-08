@@ -102,19 +102,21 @@ function HrDashboard() {
       
       const mapped = list.map(r => {
         // Format candidate name from available data
-        let displayName = 'Unknown';
+        let displayName = '';
         
-        // Priority: user_name > user_email (formatted) > user_id
-        if (r.user_name && r.user_name.trim() && !r.user_name.match(/^[0-9a-f]{8}-[0-9a-f]{4}/i)) {
-          // user_name exists and is not a UUID
-          displayName = r.user_name;
-        } else if (r.user_email && r.user_email.trim()) {
+        // Priority: user_email (formatted) > user_name (if not UUID) > user_id
+        if (r.user_email && r.user_email.trim()) {
           // Extract username from email and capitalize
           const username = r.user_email.split('@')[0];
           displayName = username.charAt(0).toUpperCase() + username.slice(1);
+        } else if (r.user_name && r.user_name.trim() && !r.user_name.match(/^[0-9a-f]{8}-[0-9a-f]{4}/i)) {
+          // user_name exists and is not a UUID
+          displayName = r.user_name;
         } else if (r.user_id && !r.user_id.match(/^[0-9a-f]{8}-[0-9a-f]{4}/i)) {
           // user_id is not a UUID
           displayName = r.user_id;
+        } else {
+          displayName = 'Candidate';
         }
         
         return {
@@ -278,6 +280,7 @@ function HrDashboard() {
   const [showExplanationModal, setShowExplanationModal] = useState(false);
   const [currentExplanation, setCurrentExplanation] = useState(null);
   const [loadingExplanation, setLoadingExplanation] = useState(false);
+  const [currentCandidateName, setCurrentCandidateName] = useState('');
 
   // Alert dialog state
   const [showAlertModal, setShowAlertModal] = useState(false);
@@ -612,6 +615,11 @@ function HrDashboard() {
     setLoadingExplanation(true);
     setShowExplanationModal(true);
     setCurrentExplanation(null);
+    
+    // Find and set candidate name
+    const candidate = candidates.find(c => c.resume_id === resumeId);
+    const candName = candidate ? (candidate.candidateName || candidate.candidateEmail || 'Candidate') : 'Candidate';
+    setCurrentCandidateName(candName);
     
     try {
       const response = await withAuth(async (token) => {
@@ -1331,8 +1339,6 @@ function HrDashboard() {
                     </h4>
                     <div className="candidate-scores">
                       <span className="candidate-score-item">Match Score: {candidate.score}%</span>
-                      <span className="candidate-score-divider">|</span>
-                      <span className="candidate-score-item">Explainable AI Score: {candidate.score}</span>
                     </div>
                   </div>
                   
@@ -1983,7 +1989,7 @@ function HrDashboard() {
         <div className="modal-overlay" onClick={() => setShowExplanationModal(false)}>
           <div className="explanation-modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h3>🔍 Ranking Explanation</h3>
+              <h3>🔍 {currentCandidateName}</h3>
               <button className="modal-close" onClick={() => setShowExplanationModal(false)}>×</button>
             </div>
             {loadingExplanation ? (
@@ -2053,7 +2059,7 @@ function HrDashboard() {
                 {currentExplanation.top_positive_words && currentExplanation.top_positive_words.length > 0 && (
                   <div className="explanation-section">
                     <h4>Word-Level Impact Analysis</h4>
-                    <p className="section-description">These words/phrases had the most influence on the ranking score:</p>
+                    <p className="section-description">Top positive cues plus requirement gaps with suggested fixes for this candidate.</p>
                     
                     <div className="lime-words-grid">
                       <div className="lime-column">
@@ -2073,24 +2079,40 @@ function HrDashboard() {
                         </div>
                       </div>
 
-                      {currentExplanation.top_negative_words && currentExplanation.top_negative_words.length > 0 && (
-                        <div className="lime-column">
-                          <div className="lime-header negative">
-                            <span>📉 Negative Impact</span>
-                          </div>
-                          <div className="lime-words-list">
-                            {currentExplanation.top_negative_words.slice(0, 8).map(([word, weight], idx) => (
-                              <div key={idx} className="lime-word-item">
-                                <span className="lime-word">{word}</span>
-                                <div className="lime-bar-container">
-                                  <div className="lime-bar negative" style={{width: `${Math.min(100, Math.abs(weight) * 500)}%`}}></div>
+                      {(() => {
+                        const gapEntries = (currentExplanation.missing_skills && currentExplanation.missing_skills.length > 0)
+                          ? currentExplanation.missing_skills.slice(0, 8).map((skill) => ({
+                              label: skill,
+                              fix: `Add or highlight experience with ${skill} (quantify if possible).`,
+                              weight: 0.4,
+                            }))
+                          : (currentExplanation.top_negative_words || []).slice(0, 8).map(([word, weight]) => ({
+                              label: word,
+                              fix: `Rephrase or back up "${word}" with a concrete achievement.`,
+                              weight: Math.abs(weight) || 0.3,
+                            }));
+
+                        if (!gapEntries.length) return null;
+
+                        return (
+                          <div className="lime-column">
+                            <div className="lime-header negative">
+                              <span>🧩 Requirement Gaps & Fixes</span>
+                            </div>
+                            <div className="lime-words-list">
+                              {gapEntries.map(({ label, fix, weight }, idx) => (
+                                <div key={idx} className="lime-word-item">
+                                  <span className="lime-word">{label}</span>
+                                  <div className="lime-bar-container">
+                                    <div className="lime-bar negative" style={{width: `${Math.min(100, Math.max(20, weight * 80))}%`}}></div>
+                                  </div>
+                                  <span className="lime-weight">{fix}</span>
                                 </div>
-                                <span className="lime-weight">{weight.toFixed(3)}</span>
-                              </div>
-                            ))}
+                              ))}
+                            </div>
                           </div>
-                        </div>
-                      )}
+                        );
+                      })()}
                     </div>
                   </div>
                 )}

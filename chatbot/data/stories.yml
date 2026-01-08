@@ -42,3 +42,36 @@ stories:
   steps:
   - intent: acknowledge
   - action: action_handle_acknowledgment
+
+- story: user asks about application status
+  steps:
+  - intent: ask_application_status
+  - action: action_answer_general_question
+
+- story: user asks about interview schedule
+  steps:
+  - intent: ask_interview_schedule
+  - action: action_answer_general_question
+
+- story: user asks about deadline
+  steps:
+  - intent: ask_deadline
+  - action: action_answer_general_question
+
+- story: user asks status during interview prep
+  steps:
+  - intent: affirm
+  - action: action_start_interview_prep
+  - intent: ask_application_status
+  - action: action_answer_general_question
+  - intent: provide_answer
+  - action: action_validate_answer
+
+- story: user asks interview schedule during prep
+  steps:
+  - intent: affirm
+  - action: action_start_interview_prep
+  - intent: ask_interview_schedule
+  - action: action_answer_general_question
+  - intent: provide_answer
+  - action: action_validate_answer
